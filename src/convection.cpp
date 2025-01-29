@@ -595,17 +595,16 @@ int main(int argc, char* argv[]) {
         // Solve the hydrodynamic equations using the kernel
         compute_kernel(Uold, Unew, dt);
 
-        // // Update Uold with the new values from Unew and apply boundary conditions
-        // Uold = Unew;
-        // compute_boundary_condition(Uold);
-        break;
+        // Update Uold with the new values from Unew and apply boundary conditions
+        Kokkos::deep_copy(Uold, Unew);
+        compute_boundary_condition(Uold);
     }
 
-    // // Measure elapsed time
-    // auto end = std::chrono::high_resolution_clock::now();
-    // elapsed_time = std::chrono::duration<double>(end - start).count();
-    // std::cout << "Execution time (s): " << elapsed_time << '\n';
-    // std::cout << "Performance (Mcell-update/s): " << nt * nx * ny * nz/ (1E6 * elapsed_time) << '\n';
+    // Measure elapsed time
+    auto end = std::chrono::high_resolution_clock::now();
+    elapsed_time = std::chrono::duration<double>(end - start).count();
+    std::cout << "Execution time (s): " << elapsed_time << '\n';
+    std::cout << "Performance (Mcell-update/s): " << nt * nx * ny * nz/ (1E6 * elapsed_time) << '\n';
     
     xc = Kokkos::View<double*>();
     yc = Kokkos::View<double*>();
