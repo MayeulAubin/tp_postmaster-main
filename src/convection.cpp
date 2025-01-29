@@ -592,9 +592,9 @@ int main(int argc, char* argv[]) {
     // Compute initial conditions for the simulation
     compute_initial_condition(Unew);
 
-    // // Copy initial conditions from Unew to Uold and apply boundary conditions
-    // Uold = Unew;
-    // compute_boundary_condition(Uold);
+    // Copy initial conditions from Unew to Uold and apply boundary conditions
+    Kokkos::deep_copy(Uold, Unew);
+    compute_boundary_condition(Uold);
 
     // // Get the start time for performance measurement
     // auto start = std::chrono::high_resolution_clock::now();
