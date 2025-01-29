@@ -595,15 +595,16 @@ int main(int argc, char* argv[]) {
         // Write output for the current time step
         write_output(it, freq_output, Uold);
 
-        // Compute the time step for the next iteration
-        dt = cfl * compute_timestep(Uold);
+        // // Compute the time step for the next iteration
+        // dt = cfl * compute_timestep(Uold);
 
-        // Solve the hydrodynamic equations using the kernel
-        compute_kernel(Uold, Unew, dt);
+        // // Solve the hydrodynamic equations using the kernel
+        // compute_kernel(Uold, Unew, dt);
 
-        // Update Uold with the new values from Unew and apply boundary conditions
-        Uold = Unew;
-        compute_boundary_condition(Uold);
+        // // Update Uold with the new values from Unew and apply boundary conditions
+        // Uold = Unew;
+        // compute_boundary_condition(Uold);
+        break;
     }
 
     // // Measure elapsed time
