@@ -308,7 +308,7 @@ double compute_timestep(Kokkos::View<double****> U) {
         Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
         KOKKOS_LAMBDA (int i, int j, int k, double& dt_loc){
             // Local variables for time step calculation
-            double dt_loc, rhoc, uc, vc, wc, ekinc, egc, pc, ac;
+            double rhoc, uc, vc, wc, ekinc, egc, pc, ac;
             // Calculate the density and velocity components
             rhoc = U(i, j, k, ID);
             uc = U(i, j, k, IU) / rhoc;  // X-velocity
