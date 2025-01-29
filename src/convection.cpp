@@ -29,72 +29,65 @@ namespace conv_variables {
 // This function fills an output data array with the state variables of the fluid simulation
 // at each grid cell. It computes the density, velocity components, kinetic energy, gravitational energy,
 // and temperature for each cell in the grid and stores these values in the provided data array.
-void fill_data(std::vector<std::vector<double>>& data, Array const& U) {
+void fill_data(Kokkos::View<double**> data, Kokkos::View<double****> U) {
     using namespace conv_variables;
 
     // Loop variables
-    int i, j, k, index;
+    int index;
 
     // Temporary variables for calculations
     double rhoc, uc, vc, wc, ekinc, egc, Tc;
 
-    // Loop over the grid cells in the z-direction
-    for (k = 1; k <= nz; ++k) {
-        // Loop over the grid cells in the y-direction
-        for (j = 1; j <= ny; ++j) {
-            // Loop over the grid cells in the x-direction
-            for (i = 1; i <= nx; ++i) {
-                // Retrieve density and velocity components
-                rhoc = U(i, j, k, ID);              // Density
-                uc = U(i, j, k, IU) / rhoc;         // X-velocity
-                vc = U(i, j, k, IV) / rhoc;         // Y-velocity
-                wc = U(i, j, k, IW) / rhoc;         // Z-velocity
+    // Loop over all grid cells 
+    Kokkos::parallel_for("fill_data", 
+        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
+        KOKKOS_LAMBDA (int i, int j, int k){
+            // Retrieve density and velocity components
+            rhoc = U(i, j, k, ID);              // Density
+            uc = U(i, j, k, IU) / rhoc;         // X-velocity
+            vc = U(i, j, k, IV) / rhoc;         // Y-velocity
+            wc = U(i, j, k, IW) / rhoc;         // Z-velocity
 
-                // Calculate kinetic and gravitational energy
-                ekinc = 0.5 * (uc * uc + vc * vc + wc * wc) * rhoc;  // Kinetic energy
-                egc = rhoc * U(i, j, k, IG);          // Gravitational energy
+            // Calculate kinetic and gravitational energy
+            ekinc = 0.5 * (uc * uc + vc * vc + wc * wc) * rhoc;  // Kinetic energy
+            egc = rhoc * U(i, j, k, IG);          // Gravitational energy
 
-                // Calculate temperature
-                Tc = (U(i, j, k, IE) - ekinc - egc) / (cv * rhoc);
+            // Calculate temperature
+            Tc = (U(i, j, k, IE) - ekinc - egc) / (cv * rhoc);
 
-                // Fill the data array with computed values
-                index = nx * ny * (k - 1) + nx * (j - 1) + i -1;
-                data[index][0] = xc[i];  // X-coordinate
-                data[index][1] = yc[j];  // Y-coordinate
-                data[index][2] = zc[k];  // Z-coordinate
-                data[index][3] = U(i, j, k, ID);  // Density
-                data[index][4] = U(i, j, k, IU);  // X-momentum
-                data[index][5] = U(i, j, k, IV);  // Y-momentum
-                data[index][6] = U(i, j, k, IW);  // Z-momentum
-                data[index][7] = U(i, j, k, IE);  // Internal energy
-                data[index][8] = Tc;              // Temperature
-            }
-        }
-    }
+            // Fill the data array with computed values
+            index = nx * ny * (k - 1) + nx * (j - 1) + i -1;
+            data(index,0) = xc(i);  // X-coordinate
+            data(index,1) = yc(j);  // Y-coordinate
+            data(index,2) = zc(k);  // Z-coordinate
+            data(index,3) = U(i, j, k, ID);  // Density
+            data(index,4) = U(i, j, k, IU);  // X-momentum
+            data(index,5) = U(i, j, k, IV);  // Y-momentum
+            data(index,6) = U(i, j, k, IW);  // Z-momentum
+            data(index,7) = U(i, j, k, IE);  // Internal energy
+            data(index,8) = Tc;              // Temperature
+        });
+        
 }
 
 // This function writes the output of the fluid simulation to a CSV file at specified time steps.
 // It calculates the maximum kinetic energy across the grid, prints the current time step and kinetic energy,
 // and saves the simulation state to a file if the output frequency condition is met.
-void write_output(int it, int freq_output, Array const& U) {
+void write_output(int it, int freq_output,Kokkos::View<double****>  U) {
     using namespace conv_variables;
 
-    int i, j, k; // loop indices
-    double ekin_max, ekin_loc; // Maximum ad local kinetic energy
+    double ekin_max;
     int iout; // Output index
-    std::vector<std::vector<double>> data; // Array to hold data for output
     std::string output_file; // Output file name
 
     // Calculate the maximum kinetic energy across the grid
-    ekin_max = 0.0;
-     for (i = 1; i <= nx; ++i) {
-        for (j = 1; j <= ny; ++j) {
-            for (k = 1; k <= nz; ++k) {
-                ekin_loc = 0.5 * (U(i, j, k, IU)*U(i, j, k, IU) + U(i, j, k, IV)*U(i, j, k, IV) + U(i, j, k, IW)*U(i, j, k, IW))/U(i, j, k, ID);
-                ekin_max = std::max(ekin_max, ekin_loc);
-            }
-        }
-     }
+    Kokkos::parallel_reduce("find_max_output", 
+        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
+        KOKKOS_LAMBDA (int i, int j, int k, double& Ekin){
+                Ekin = 0.5 * (U(i, j, k, IU)*U(i, j, k, IU) + U(i, j, k, IV)*U(i, j, k, IV) + U(i, j, k, IW)*U(i, j, k, IW))/U(i, j, k, ID);
+        },
+        Kokkos::Max<double>(ekin_max));
+     
 
     // Print the current time step and kinetic energy to the console
     std::cout << "timestep: " << it << " kinetic energy: " << ekin_max << '\n';
@@ -104,7 +97,7 @@ void write_output(int it, int freq_output, Array const& U) {
         iout = it / freq_output; // Calculate output index
         std::cout << "write csv output: " << iout << '\n'; // Inform about the output being generated
 
-        data = std::vector<std::vector<double>>(nx * ny * nz, std::vector<double>(nvar + 3));
+        Kokkos::View<double**> data("data_output", nx * ny * nz, nvar + 3);
 
         // Fill the data array with the current simulation state
         fill_data(data, U);
@@ -122,9 +115,9 @@ void write_output(int it, int freq_output, Array const& U) {
 
         // Write the data to the output file
         for (int i = 0; i < nx * ny * nz; ++i) {
-            outfile << std::fixed << std::setprecision(5) << data[i][0];
+            outfile << std::fixed << std::setprecision(5) << data(i, 0);
             for (int j = 1; j < 9; ++j) {
-                outfile << ',' << data[i][j];
+                outfile << ',' << data(i, j);
             }
             outfile << '\n';
         }
@@ -151,8 +144,6 @@ void compute_initial_condition(Kokkos::View<double****> U) {
             U(i, j, 1, IE) = rho_bottom * cv * T_bottom + rho_bottom * (-grav * zc[1]);  // Total energy at the bottom, considering gravitational potential
             U(i, j, 1, IG) = -grav * zc[1];  // Gravitational potential energy at the bottom
         });
-
-    Kokkos::fence();
 
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -596,24 +587,24 @@ int main(int argc, char* argv[]) {
     Kokkos::deep_copy(Uold, Unew);
     compute_boundary_condition(Uold);
 
-    // // Get the start time for performance measurement
-    // auto start = std::chrono::high_resolution_clock::now();
+    // Get the start time for performance measurement
+    auto start = std::chrono::high_resolution_clock::now();
 
-    // // Time-stepping loop
-    // for (it = 0; it < nt; ++it) {
-    //     // Write output for the current time step
-    //     write_output(it, freq_output, Uold);
+    // Time-stepping loop
+    for (it = 0; it < nt; ++it) {
+        // Write output for the current time step
+        write_output(it, freq_output, Uold);
 
-    //     // Compute the time step for the next iteration
-    //     dt = cfl * compute_timestep(Uold);
+        // Compute the time step for the next iteration
+        dt = cfl * compute_timestep(Uold);
 
-    //     // Solve the hydrodynamic equations using the kernel
-    //     compute_kernel(Uold, Unew, dt);
+        // Solve the hydrodynamic equations using the kernel
+        compute_kernel(Uold, Unew, dt);
 
-    //     // Update Uold with the new values from Unew and apply boundary conditions
-    //     Uold = Unew;
-    //     compute_boundary_condition(Uold);
-    // }
+        // Update Uold with the new values from Unew and apply boundary conditions
+        Uold = Unew;
+        compute_boundary_condition(Uold);
+    }
 
     // // Measure elapsed time
     // auto end = std::chrono::high_resolution_clock::now();
