@@ -152,6 +152,8 @@ void compute_initial_condition(Kokkos::View<double****> U) {
             U(i, j, 1, IG) = -grav * zc[1];  // Gravitational potential energy at the bottom
         });
 
+    Kokkos::fence();
+
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(0.0, 1.0);
