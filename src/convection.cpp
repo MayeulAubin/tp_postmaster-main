@@ -203,15 +203,16 @@ void compute_boundary_condition(Kokkos::View<double****>  U) {
     using namespace conv_variables;
 
 
-    // Temporary variables for calculations
-    double rho2, u2, v2, w2, ekin2, eg2, T2;
-    double rho1, u1, v1, w1, ekin1, eg1, T1;
-    double T0, rho0, ekin0, eg0;
+    
 
     // Extrapolation for the bottom boundary (k = 0)
     Kokkos::parallel_for("BC_bottom", 
         Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1}, {nx+1, ny+1}), 
         KOKKOS_LAMBDA (int i, int j){
+            // Temporary variables for calculations
+            double rho2, u2, v2, w2, ekin2, eg2, T2;
+            double rho1, u1, v1, w1, ekin1, eg1, T1;
+            double T0, rho0, ekin0, eg0;
             // Get the values from the second layer
             rho2 = U(i, j, 2, ID);
             u2 = U(i, j, 2, IU) / rho2;
@@ -250,6 +251,10 @@ void compute_boundary_condition(Kokkos::View<double****>  U) {
     Kokkos::parallel_for("BC_top", 
         Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1}, {nx+1, ny+1}), 
         KOKKOS_LAMBDA (int i, int j){
+            // Temporary variables for calculations
+            double rho2, u2, v2, w2, ekin2, eg2, T2;
+            double rho1, u1, v1, w1, ekin1, eg1, T1;
+            double T0, rho0, ekin0, eg0;
             rho2 = U(i, j, nz - 1, ID);
             u2 = U(i, j, nz - 1, IU) / rho2;
             v2 = U(i, j, nz - 1, IV) / rho2;
