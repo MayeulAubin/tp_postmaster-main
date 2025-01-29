@@ -140,10 +140,8 @@ void write_output(int it, int freq_output, Array const& U) {
 void compute_initial_condition(Kokkos::View<double****> U) {
     using namespace conv_variables;
 
-    // Temporary variables for temperature and density calculations
-    double Tl, Tr, rhol, rhor, ur, vr, wr;
 
-    Kokkos:parallel_for("init_bottom", 
+    Kokkos::parallel_for("init_bottom", 
         Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1}, {nx+1, ny+1}), 
         KOKKOS_LAMBDA (int i, int j){
             U(i, j, 1, ID) = rho_bottom;  // Set density at the bottom of the domain
@@ -158,10 +156,12 @@ void compute_initial_condition(Kokkos::View<double****> U) {
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(0.0, 1.0);
     // Recursive initialization of the rest of the domain
-    Kokkos:parallel_for("init_domain", 
+    Kokkos::parallel_for("init_domain", 
         Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1}, {nx+1, ny+1}), 
         KOKKOS_LAMBDA (int i, int j){
             for (int k = 2; k <= nz; ++k) {
+                // Temporary variables for temperature and density calculations
+                double Tl, Tr, rhol, rhor, ur, vr, wr;
                 // Calculate left and right temperatures based on the vertical position
                 Tl = T_bottom + dTdz * (zc[k - 1] - zc[1]);  // Temperature at the previous grid cell (k-1)
                 Tr = T_bottom + dTdz * (zc[k] - zc[1]);      // Temperature at the current grid cell (k)
