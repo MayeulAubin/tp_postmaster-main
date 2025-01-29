@@ -298,42 +298,36 @@ void compute_boundary_condition(Kokkos::View<double****>  U) {
 // pressure, and speed of sound at each grid cell. The global time step
 // is updated to the minimum value found across all grid cells to ensure
 // stability in the simulation.
-double compute_timestep(Array const& U) {
+double compute_timestep(Kokkos::View<double****> U) {
     using namespace conv_variables;
 
-    // Local variables for time step calculation
-    double dt_loc, rhoc, uc, vc, wc, ekinc, egc, pc, ac;
-    int i, j, k;
-    double dt = std::numeric_limits<double>::max();  // Initialize the time step to a large value
-
+    double dt;
+    
     // Loop over the grid cells to compute the local time step
-    for (i = 1; i <= nx; ++i) {
-        for (j = 1; j <= ny; ++j) {
-            for (k = 1; k <= nz; ++k) {
-                // Calculate the density and velocity components
-                rhoc = U(i, j, k, ID);
-                uc = U(i, j, k, IU) / rhoc;  // X-velocity
-                vc = U(i, j, k, IV) / rhoc;  // Y-velocity
-                wc = U(i, j, k, IW) / rhoc;  // Z-velocity
+    Kokkos::parallel_reduce("compute_dt", 
+        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
+        KOKKOS_LAMBDA (int i, int j, int k, double& dt_loc){
+            // Local variables for time step calculation
+            double dt_loc, rhoc, uc, vc, wc, ekinc, egc, pc, ac;
+            // Calculate the density and velocity components
+            rhoc = U(i, j, k, ID);
+            uc = U(i, j, k, IU) / rhoc;  // X-velocity
+            vc = U(i, j, k, IV) / rhoc;  // Y-velocity
+            wc = U(i, j, k, IW) / rhoc;  // Z-velocity
 
-                // Calculate kinetic and gravitational energy
-                ekinc = 0.5 * (uc * uc + vc * vc + wc * wc) * rhoc;
-                egc = rhoc * U(i, j, k, IG);
+            // Calculate kinetic and gravitational energy
+            ekinc = 0.5 * (uc * uc + vc * vc + wc * wc) * rhoc;
+            egc = rhoc * U(i, j, k, IG);
 
-                // Calculate pressure and sound speed
-                pc = (U(i, j, k, IE) - ekinc - egc) * (gam - 1.0);
-                ac = std::sqrt(gam * pc / rhoc);  // Speed of sound
+            // Calculate pressure and sound speed
+            pc = (U(i, j, k, IE) - ekinc - egc) * (gam - 1.0);
+            ac = std::sqrt(gam * pc / rhoc);  // Speed of sound
 
-                // Calculate the local time step based on CFL condition
-                dt_loc = std::min(std::min(dx, dy), dz) / (ac + std::sqrt(uc * uc + vc * vc + wc * wc));
-
-                // Update the global time step to the minimum found
-                dt = std::min(dt, dt_loc);
-            }
-        }
-    }
-
-    return dt;
+            // Calculate the local time step based on CFL condition
+            dt_loc = std::min(std::min(dx, dy), dz) / (ac + std::sqrt(uc * uc + vc * vc + wc * wc));
+        },
+        Kokkos::Min<double>(dt));
+        return dt;
 }
 
 // This function computes the flux at a face between two states in a convection problem.
