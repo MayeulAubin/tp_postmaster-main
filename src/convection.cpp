@@ -629,6 +629,10 @@ int main(int argc, char* argv[]) {
     // elapsed_time = std::chrono::duration<double>(end - start).count();
     // std::cout << "Execution time (s): " << elapsed_time << '\n';
     // std::cout << "Performance (Mcell-update/s): " << nt * nx * ny * nz/ (1E6 * elapsed_time) << '\n';
+    
+    xc = Kokkos::View<double*>();
+    yc = Kokkos::View<double*>();
+    zc = Kokkos::View<double*>();
     }
     Kokkos::finalize();
     return 0;
