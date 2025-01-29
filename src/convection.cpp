@@ -137,11 +137,9 @@ void write_output(int it, int freq_output, Array const& U) {
 // This function initializes the conditions for a fluid simulation in a 2D grid.
 // It sets the initial values for density, momentum, total energy, and gravitational potential energy
 // at each grid cell based on specified boundary conditions and temperature gradients.
-void compute_initial_condition(Kokkos:View<double****> U) {
+void compute_initial_condition(Kokkos::View<double****> U) {
     using namespace conv_variables;
 
-        // Loop variables
-    int i, j, k;
     // Temporary variables for temperature and density calculations
     double Tl, Tr, rhol, rhor, ur, vr, wr;
 
@@ -163,7 +161,7 @@ void compute_initial_condition(Kokkos:View<double****> U) {
     Kokkos:parallel_for("init_domain", 
         Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1}, {nx+1, ny+1}), 
         KOKKOS_LAMBDA (int i, int j){
-            for (k = 2; k <= nz; ++k) {
+            for (int k = 2; k <= nz; ++k) {
                 // Calculate left and right temperatures based on the vertical position
                 Tl = T_bottom + dTdz * (zc[k - 1] - zc[1]);  // Temperature at the previous grid cell (k-1)
                 Tr = T_bottom + dTdz * (zc[k] - zc[1]);      // Temperature at the current grid cell (k)
