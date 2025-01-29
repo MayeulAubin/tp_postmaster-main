@@ -158,9 +158,11 @@ void compute_initial_condition(Kokkos::View<double****> U) {
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(0.0, 1.0);
     // Recursive initialization of the rest of the domain
-    Kokkos::parallel_for("init_domain", 
-        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1}, {nx+1, ny+1}), 
-        KOKKOS_LAMBDA (int i, int j){
+    // Kokkos::parallel_for("init_domain", 
+    //     Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1}, {nx+1, ny+1}), 
+    //     KOKKOS_LAMBDA (int i, int j){
+    for(int i = 1; i <= nx; ++i)
+        for(int j = 1; j <= ny; ++j)
             for (int k = 2; k <= nz; ++k) {
                 // Temporary variables for temperature and density calculations
                 double Tl, Tr, rhol, rhor, ur, vr, wr;
@@ -188,7 +190,7 @@ void compute_initial_condition(Kokkos::View<double****> U) {
                 U(i, j, k, IE) = rhor * cv * Tr + rhor * (-grav * zc[k]) + 0.5 * (ur * ur + vr * vr + wr * wr) * rhor;  // Total energy
                 U(i, j, k, IG) = -grav * zc[k];  // Gravitational potential energy
             }
-        });
+        // });
     
 }
 
