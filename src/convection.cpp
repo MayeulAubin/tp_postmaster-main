@@ -538,7 +538,8 @@ void linspace(double start, double end, int num, Kokkos::View<double*>& out) {
 // This program simulates a fluid dynamics problem using a computational grid.
 // It initializes parameters, allocates memory for data structures, computes initial conditions,
 // applies boundary conditions, and iteratively solves the hydrodynamic equations over a specified number of time steps.
-int main() {
+int main(int argc, char*[] argv) {
+    Kokkos::initialize(argc,argv);
     using namespace conv_variables;
 
     // Declare variables
@@ -617,5 +618,6 @@ int main() {
     // std::cout << "Execution time (s): " << elapsed_time << '\n';
     // std::cout << "Performance (Mcell-update/s): " << nt * nx * ny * nz/ (1E6 * elapsed_time) << '\n';
 
+    Kokkos::finalize();
     return 0;
 }
