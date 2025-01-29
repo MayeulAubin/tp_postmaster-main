@@ -32,13 +32,14 @@ namespace conv_variables {
 void fill_data(Kokkos::View<double**> data, Kokkos::View<double****> U) {
     using namespace conv_variables;
 
-    // Loop variables
-    int index;
+    
 
     // Loop over all grid cells 
     Kokkos::parallel_for("fill_data", 
         Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
         KOKKOS_LAMBDA (int i, int j, int k){
+            // Loop variables
+            int index;
             // Temporary variables for calculations
             double rhoc, uc, vc, wc, ekinc, egc, Tc;
             // Retrieve density and velocity components
