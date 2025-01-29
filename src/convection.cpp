@@ -35,13 +35,12 @@ void fill_data(Kokkos::View<double**> data, Kokkos::View<double****> U) {
     // Loop variables
     int index;
 
-    // Temporary variables for calculations
-    double rhoc, uc, vc, wc, ekinc, egc, Tc;
-
     // Loop over all grid cells 
     Kokkos::parallel_for("fill_data", 
         Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
         KOKKOS_LAMBDA (int i, int j, int k){
+            // Temporary variables for calculations
+            double rhoc, uc, vc, wc, ekinc, egc, Tc;
             // Retrieve density and velocity components
             rhoc = U(i, j, k, ID);              // Density
             uc = U(i, j, k, IU) / rhoc;         // X-velocity
