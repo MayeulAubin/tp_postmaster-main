@@ -43,7 +43,8 @@ def compute_initial_condition(U):
                 # Set velocities
                 ur = 0.0  # x-velocity (remains zero)
                 vr = 0.0  # y-velocity (remains zero)
-                wr = 1E-3 * np.random.rand()  # z-velocity (small random value)
+                # wr = 1E-3 * np.random.rand()  # z-velocity (small random value)
+                wr = 0.0 # z-velocity (remains zero, no convection, unstable state)
 
                 # Assign computed values to the current cell
                 U[i, j, k, ID] = rhor  # Density

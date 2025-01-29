@@ -1,0 +1,25 @@
+# Convection output files
+*.csv.[0-9]*
+build*
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Visual studio code
+.vscode
+.cache
+
+# Apple
+.DS_Store
