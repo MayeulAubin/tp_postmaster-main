@@ -572,9 +572,9 @@ int main() {
     dz = Lz / nz; // Grid spacing in z-direction
 
     // Instantiate Kokkos view for grid coordinates
-    xc = xc("xc", nx + 2);
-    yc = yc("yc", ny + 2);
-    zc = zc("zc", nz + 2);
+    xc = Kokkos::View<double*>("xc", nx + 2);
+    yc = Kokkos::View<double*>("yc", ny + 2);
+    zc = Kokkos::View<double*>("zc", nz + 2);
 
     // Allocate memory for grid coordinates
     linspace(-0.5 * dx, Lx + 0.5 * dx, nx + 2, xc); // Generate x-coordinates
