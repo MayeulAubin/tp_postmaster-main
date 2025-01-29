@@ -203,8 +203,6 @@ void compute_boundary_condition(Kokkos::View<double****>  U) {
     using namespace conv_variables;
 
 
-    
-
     // Extrapolation for the bottom boundary (k = 0)
     Kokkos::parallel_for("BC_bottom", 
         Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1}, {nx+1, ny+1}), 
@@ -286,28 +284,21 @@ void compute_boundary_condition(Kokkos::View<double****>  U) {
             U(i, j, nz + 1, IG) = -grav * zc[nz + 1];
         });
 
-    // // Periodic boundary conditions in the x-direction
-    // Kokkos::parallel_for("init_bottom", 
-    //     Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({1, 0}, {ny+1, ny+1}), 
-    //     KOKKOS_LAMBDA (int j, int k, int ivar){
-    // for (k = 0; k < nz + 2; ++k) {
-    //     for (j = 1; j < ny + 1; ++j) {
-    //         for (ivar = 0; ivar < nvar; ++ivar) {
-    //             U(0, j, k, ivar) = U(nx, j, k, ivar);      // Left boundary
-    //             U(nx + 1, j, k, ivar) = U(1, j, k, ivar);  // Right boundary
-    //         }
-    //     }
-    // }
+    // Periodic boundary conditions in the x-direction
+    Kokkos::parallel_for("BC_x", 
+        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({1, 0, 0}, {ny+1, nz+2, nvar}), 
+        KOKKOS_LAMBDA (int j, int k, int ivar){
+            U(0, j, k, ivar) = U(nx, j, k, ivar);      // Left boundary
+            U(nx + 1, j, k, ivar) = U(1, j, k, ivar);  // Right boundary
+        });
 
     // Periodic boundary conditions in the y-direction
-    for (int k = 0; k < nz + 2; ++k) {
-        for (int i = 0; i < nx + 2; ++i) {
-            for (int ivar = 0; ivar < nvar; ++ivar) {
-                U(i, 0, k, ivar) = U(i, ny, k, ivar);      // Left boundary
-                U(i, ny + 1, k, ivar) = U(i, 1, k, ivar);  // Right boundary
-            }
-        }
-    }
+    Kokkos::parallel_for("BC_y", 
+        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({0, 0, 0}, {nx+2 nz+2, nvar}), 
+        KOKKOS_LAMBDA (int i, int k, int ivar){
+            U(i, 0, k, ivar) = U(i, ny, k, ivar);      // Left boundary
+            U(i, ny + 1, k, ivar) = U(i, 1, k, ivar);  // Right boundary
+        });
 }
 
 // This function computes the local time step for a numerical simulation
