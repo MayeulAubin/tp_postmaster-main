@@ -199,19 +199,19 @@ void compute_initial_condition(Kokkos::View<double****> U) {
 // two adjacent layers, and sets periodic boundary conditions in the x/y-directions.
 // The calculations involve density, velocity, kinetic energy, internal energy, and
 // temperature, taking into account gravitational effects.
-void compute_boundary_condition(Array& U) {
+void compute_boundary_condition(Kokkos::View<double****>  U) {
     using namespace conv_variables;
 
-        // Loop variables
-    int i, j, k, ivar;
+
     // Temporary variables for calculations
     double rho2, u2, v2, w2, ekin2, eg2, T2;
     double rho1, u1, v1, w1, ekin1, eg1, T1;
     double T0, rho0, ekin0, eg0;
 
     // Extrapolation for the bottom boundary (k = 0)
-    for (i = 1; i < nx+1; ++i) {
-        for (j = 1; j < ny+1; ++j) {
+    Kokkos::parallel_for("BC_bottom", 
+        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1}, {nx+1, ny+1}), 
+        KOKKOS_LAMBDA (int i, int j){
             // Get the values from the second layer
             rho2 = U(i, j, 2, ID);
             u2 = U(i, j, 2, IU) / rho2;
@@ -244,12 +244,12 @@ void compute_boundary_condition(Array& U) {
             eg0 = rho0 * (-grav * zc[1]);
             U(i, j, 0, IE) = rho0 * cv * T0 + ekin0 + eg0;
             U(i, j, 0, IG) = -grav * zc[1];
-        }
-    }
+        });
 
     // Extrapolation for the top boundary (k = nz + 1)
-    for (i = 1; i < nx+1; ++i) {
-        for (j = 1; j < ny+1; ++j) {
+    Kokkos::parallel_for("BC_top", 
+        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1}, {nx+1, ny+1}), 
+        KOKKOS_LAMBDA (int i, int j){
             rho2 = U(i, j, nz - 1, ID);
             u2 = U(i, j, nz - 1, IU) / rho2;
             v2 = U(i, j, nz - 1, IV) / rho2;
@@ -279,18 +279,20 @@ void compute_boundary_condition(Array& U) {
             eg0 = rho0 * (-grav * zc[nz + 1]);
             U(i, j, nz + 1, IE) = rho0 * cv * T0 + ekin0 + eg0;
             U(i, j, nz + 1, IG) = -grav * zc[nz + 1];
-        }
-    }
+        });
 
-    // Periodic boundary conditions in the x-direction
-    for (k = 0; k < nz + 2; ++k) {
-        for (j = 1; j < ny + 1; ++j) {
-            for (ivar = 0; ivar < nvar; ++ivar) {
-                U(0, j, k, ivar) = U(nx, j, k, ivar);      // Left boundary
-                U(nx + 1, j, k, ivar) = U(1, j, k, ivar);  // Right boundary
-            }
-        }
-    }
+    // // Periodic boundary conditions in the x-direction
+    // Kokkos::parallel_for("init_bottom", 
+    //     Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({1, 0}, {ny+1, ny+1}), 
+    //     KOKKOS_LAMBDA (int j, int k, int ivar){
+    // for (k = 0; k < nz + 2; ++k) {
+    //     for (j = 1; j < ny + 1; ++j) {
+    //         for (ivar = 0; ivar < nvar; ++ivar) {
+    //             U(0, j, k, ivar) = U(nx, j, k, ivar);      // Left boundary
+    //             U(nx + 1, j, k, ivar) = U(1, j, k, ivar);  // Right boundary
+    //         }
+    //     }
+    // }
 
     // Periodic boundary conditions in the y-direction
     for (k = 0; k < nz + 2; ++k) {
@@ -542,6 +544,7 @@ void linspace(double start, double end, int num, Kokkos::View<double*>& out) {
 // applies boundary conditions, and iteratively solves the hydrodynamic equations over a specified number of time steps.
 int main(int argc, char* argv[]) {
     Kokkos::initialize(argc,argv);
+    {
     using namespace conv_variables;
 
     // Declare variables
@@ -621,7 +624,7 @@ int main(int argc, char* argv[]) {
     // elapsed_time = std::chrono::duration<double>(end - start).count();
     // std::cout << "Execution time (s): " << elapsed_time << '\n';
     // std::cout << "Performance (Mcell-update/s): " << nt * nx * ny * nz/ (1E6 * elapsed_time) << '\n';
-
+    }
     Kokkos::finalize();
     return 0;
 }
