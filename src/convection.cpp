@@ -137,7 +137,7 @@ void write_output(int it, int freq_output, Array const& U) {
 // This function initializes the conditions for a fluid simulation in a 2D grid.
 // It sets the initial values for density, momentum, total energy, and gravitational potential energy
 // at each grid cell based on specified boundary conditions and temperature gradients.
-void compute_initial_condition(Array& U) {
+void compute_initial_condition(Kokkos:View<double****> U) {
     using namespace conv_variables;
 
         // Loop variables
@@ -145,24 +145,24 @@ void compute_initial_condition(Array& U) {
     // Temporary variables for temperature and density calculations
     double Tl, Tr, rhol, rhor, ur, vr, wr;
 
-    // Initialize the bottom of the domain at k=1
-    for (i = 1; i <= nx; ++i) {
-        for (j = 1; j <= ny; ++j) {
+    Kokkos:parallel_for("init_bottom", 
+        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1}, {nx+1, ny+1}), 
+        KOKKOS_LAMBDA (int i, int j){
             U(i, j, 1, ID) = rho_bottom;  // Set density at the bottom of the domain
             U(i, j, 1, IU) = 0.0;          // Set initial X-momentum at the bottom to zero
             U(i, j, 1, IV) = 0.0;          // Set initial Y-momentum at the bottom to zero
             U(i, j, 1, IW) = 0.0;          // Set initial Z-momentum at the bottom to zero
             U(i, j, 1, IE) = rho_bottom * cv * T_bottom + rho_bottom * (-grav * zc[1]);  // Total energy at the bottom, considering gravitational potential
             U(i, j, 1, IG) = -grav * zc[1];  // Gravitational potential energy at the bottom
-        }
-    }
+        });
 
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(0.0, 1.0);
     // Recursive initialization of the rest of the domain
-    for (i = 1; i <= nx; ++i) {
-        for (j = 1; j <= ny; ++j) {
+    Kokkos:parallel_for("init_domain", 
+        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1}, {nx+1, ny+1}), 
+        KOKKOS_LAMBDA (int i, int j){
             for (k = 2; k <= nz; ++k) {
                 // Calculate left and right temperatures based on the vertical position
                 Tl = T_bottom + dTdz * (zc[k - 1] - zc[1]);  // Temperature at the previous grid cell (k-1)
@@ -188,8 +188,8 @@ void compute_initial_condition(Array& U) {
                 U(i, j, k, IE) = rhor * cv * Tr + rhor * (-grav * zc[k]) + 0.5 * (ur * ur + vr * vr + wr * wr) * rhor;  // Total energy
                 U(i, j, k, IG) = -grav * zc[k];  // Gravitational potential energy
             }
-        }
-    }
+        });
+    
 }
 
 // This function computes boundary conditions for a fluid simulation in a 2D grid.
@@ -582,12 +582,14 @@ int main(int argc, char* argv[]) {
     linspace(-0.5 * dy, Ly + 0.5 * dy, ny + 2, yc); // Generate y-coordinates
     linspace(-0.5 * dz, Lz + 0.5 * dz, nz + 2, zc); // Generate z-coordinates
 
-    // // Allocate memory for simulation data structures
+    // Allocate memory for simulation data structures
     // Array Uold(nx + 2, ny + 2, nz + 2, nvar);
     // Array Unew(nx + 2, ny + 2, nz + 2, nvar);
+    Kokkos::View<double****> Uold("Uold", nx + 2, ny + 2, nz + 2, nvar);
+    Kokkos::View<double****> Unew("Unew", nx + 2, ny + 2, nz + 2, nvar);
 
-    // // Compute initial conditions for the simulation
-    // compute_initial_condition(Unew);
+    // Compute initial conditions for the simulation
+    compute_initial_condition(Unew);
 
     // // Copy initial conditions from Unew to Uold and apply boundary conditions
     // Uold = Unew;
