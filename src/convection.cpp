@@ -36,7 +36,7 @@ void fill_data(Kokkos::View<double**> data, Kokkos::View<double****> U) {
 
     // Loop over all grid cells 
     Kokkos::parallel_for("fill_data", 
-        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<2>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
+        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
         KOKKOS_LAMBDA (int i, int j, int k){
             // Loop variables
             int index;
@@ -595,8 +595,8 @@ int main(int argc, char* argv[]) {
         // Write output for the current time step
         write_output(it, freq_output, Uold);
 
-        // // Compute the time step for the next iteration
-        // dt = cfl * compute_timestep(Uold);
+        // Compute the time step for the next iteration
+        dt = cfl * compute_timestep(Uold);
 
         // // Solve the hydrodynamic equations using the kernel
         // compute_kernel(Uold, Unew, dt);
