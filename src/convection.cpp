@@ -300,9 +300,9 @@ void compute_boundary_condition(Kokkos::View<double****>  U) {
     // }
 
     // Periodic boundary conditions in the y-direction
-    for (k = 0; k < nz + 2; ++k) {
-        for (i = 0; i < nx + 2; ++i) {
-            for (ivar = 0; ivar < nvar; ++ivar) {
+    for (int k = 0; k < nz + 2; ++k) {
+        for (int i = 0; i < nx + 2; ++i) {
+            for (int ivar = 0; ivar < nvar; ++ivar) {
                 U(i, 0, k, ivar) = U(i, ny, k, ivar);      // Left boundary
                 U(i, ny + 1, k, ivar) = U(i, 1, k, ivar);  // Right boundary
             }
