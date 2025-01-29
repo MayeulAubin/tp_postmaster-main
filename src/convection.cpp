@@ -6,6 +6,7 @@
 #include <random>
 #include <sstream>
 #include <vector>
+#include <Kokkos_Core.hpp>
 
 #include "convection.hpp"
 
@@ -22,7 +23,7 @@ namespace conv_variables {
     int nx, ny, nz;  // Grid dimensions and simulation parameters
     double Lx, Ly, Lz, gam, cv, grav;  // Physical constants and parameters
     double tau, T_bottom, rho_bottom, dTdz, dx, dy, dz;  // Additional parameters for temperature and grid spacing
-    std::vector<double> xc, yc, zc;  // Arrays for x, y, and z cell center coordinates with ghosts
+    Kokkos::View<double*> xc, yc, zc;  // Arrays for x, y, and z cell center coordinates with ghosts
 }
 
 // This function fills an output data array with the state variables of the fluid simulation
@@ -523,12 +524,15 @@ void compute_kernel(Array const& Uold, Array& Unew, double dt) {
 // It takes the start and stop values, the number of points to generate, and an output array to hold the results.
 // The first and last points in the output array are set to the start and stop values respectively,
 // and the intermediate points are calculated using linear interpolation.
-void linspace(double start, double end, int num, std::vector<double>& out) {
-    out.resize(num);
+void linspace(double start, double end, int num, Kokkos::View<double*>& out) {
+    // out.resize(num);
     double step = (end - start) / (num - 1);
-    for (int i = 0; i < num; ++i) {
-        out[i] = start + i * step;
-    }
+    // for (int i = 0; i < num; ++i) {
+    //     out[i] = start + i * step;
+    // }
+    Kokkos::parallel_for("linspace", num, KOKKOS_LAMBDA(int i) {
+        out(i) = start + i * step;
+    });
 }
 
 // This program simulates a fluid dynamics problem using a computational grid.
@@ -567,46 +571,51 @@ int main() {
     dy = Ly / ny; // Grid spacing in y-direction
     dz = Lz / nz; // Grid spacing in z-direction
 
+    // Instantiate Kokkos view for grid coordinates
+    xc = xc("xc", nx + 2);
+    yc = yc("yc", ny + 2);
+    zc = zc("zc", nz + 2);
+
     // Allocate memory for grid coordinates
     linspace(-0.5 * dx, Lx + 0.5 * dx, nx + 2, xc); // Generate x-coordinates
     linspace(-0.5 * dy, Ly + 0.5 * dy, ny + 2, yc); // Generate y-coordinates
     linspace(-0.5 * dz, Lz + 0.5 * dz, nz + 2, zc); // Generate z-coordinates
 
-    // Allocate memory for simulation data structures
-    Array Uold(nx + 2, ny + 2, nz + 2, nvar);
-    Array Unew(nx + 2, ny + 2, nz + 2, nvar);
+    // // Allocate memory for simulation data structures
+    // Array Uold(nx + 2, ny + 2, nz + 2, nvar);
+    // Array Unew(nx + 2, ny + 2, nz + 2, nvar);
 
-    // Compute initial conditions for the simulation
-    compute_initial_condition(Unew);
+    // // Compute initial conditions for the simulation
+    // compute_initial_condition(Unew);
 
-    // Copy initial conditions from Unew to Uold and apply boundary conditions
-    Uold = Unew;
-    compute_boundary_condition(Uold);
+    // // Copy initial conditions from Unew to Uold and apply boundary conditions
+    // Uold = Unew;
+    // compute_boundary_condition(Uold);
 
-    // Get the start time for performance measurement
-    auto start = std::chrono::high_resolution_clock::now();
+    // // Get the start time for performance measurement
+    // auto start = std::chrono::high_resolution_clock::now();
 
-    // Time-stepping loop
-    for (it = 0; it < nt; ++it) {
-        // Write output for the current time step
-        write_output(it, freq_output, Uold);
+    // // Time-stepping loop
+    // for (it = 0; it < nt; ++it) {
+    //     // Write output for the current time step
+    //     write_output(it, freq_output, Uold);
 
-        // Compute the time step for the next iteration
-        dt = cfl * compute_timestep(Uold);
+    //     // Compute the time step for the next iteration
+    //     dt = cfl * compute_timestep(Uold);
 
-        // Solve the hydrodynamic equations using the kernel
-        compute_kernel(Uold, Unew, dt);
+    //     // Solve the hydrodynamic equations using the kernel
+    //     compute_kernel(Uold, Unew, dt);
 
-        // Update Uold with the new values from Unew and apply boundary conditions
-        Uold = Unew;
-        compute_boundary_condition(Uold);
-    }
+    //     // Update Uold with the new values from Unew and apply boundary conditions
+    //     Uold = Unew;
+    //     compute_boundary_condition(Uold);
+    // }
 
-    // Measure elapsed time
-    auto end = std::chrono::high_resolution_clock::now();
-    elapsed_time = std::chrono::duration<double>(end - start).count();
-    std::cout << "Execution time (s): " << elapsed_time << '\n';
-    std::cout << "Performance (Mcell-update/s): " << nt * nx * ny * nz/ (1E6 * elapsed_time) << '\n';
+    // // Measure elapsed time
+    // auto end = std::chrono::high_resolution_clock::now();
+    // elapsed_time = std::chrono::duration<double>(end - start).count();
+    // std::cout << "Execution time (s): " << elapsed_time << '\n';
+    // std::cout << "Performance (Mcell-update/s): " << nt * nx * ny * nz/ (1E6 * elapsed_time) << '\n';
 
     return 0;
 }
