@@ -272,7 +272,7 @@ void compute_boundary_condition(Kokkos::View<double****>  U) {
             ekin0 = ekin1 / rho1 * rho0;
             eg0 = rho0 * (-grav * zc[nz + 1]);
             U(i, j, nz + 1, IE) = rho0 * cv * T0 + ekin0 + eg0;
-            U(i, j, nz + 1, IG) = -grav * zc[nz + 1];
+            U(i, j, nz + 1, IG) = -grav * zc[nz + 1);
         });
 
     // Periodic boundary conditions in the x-direction
@@ -334,7 +334,7 @@ double compute_timestep(Kokkos::View<double****> U) {
 // It takes in left and right state vectors, gravitational acceleration, and outputs the flux vector.
 // The calculations involve determining various properties (density, velocity, energy) for both states,
 // as well as face-centered properties, and then applying a numerical flux method based on wave speeds.
-void compute_flux(std::array<double, conv_variables::nvar> const& Ucl, std::array<double, conv_variables::nvar> const& Ucr, double gravdx, std::array<double, conv_variables::nvar>& flux) {
+void compute_flux(const Kokkos::View<double*> Ucl, const Kokkos::View<double*> Ucr, double gravdx, Kokkos::View<double*> flux) {
     using namespace conv_variables;
 
     // Local variables for left state calculations
@@ -345,23 +345,23 @@ void compute_flux(std::array<double, conv_variables::nvar> const& Ucl, std::arra
     double aface, ustar, theta, pstar;
 
     // Calculate left state properties
-    rhol = Ucl[ID];
-    ul = Ucl[IU] / rhol;
-    vl = Ucl[IV] / rhol;
-    wl = Ucl[IW] / rhol;
+    rhol = Ucl(ID);
+    ul = Ucl(IU) / rhol;
+    vl = Ucl(IV) / rhol;
+    wl = Ucl(IW) / rhol;
     ekinl = 0.5 * (ul * ul + vl * vl + wl * wl) * rhol;
-    egl = rhol * Ucl[IG];
-    pl = (Ucl[IE] - ekinl - egl) * (gam - 1.0);
+    egl = rhol * Ucl(IG);
+    pl = (Ucl(IE) - ekinl - egl) * (gam - 1.0);
     al = rhol * std::sqrt(gam * pl / rhol);
 
     // Calculate right state properties
-    rhor = Ucr[ID];
-    ur = Ucr[IU] / rhor;
-    vr = Ucr[IV] / rhor;
-    wr = Ucr[IW] / rhor;
+    rhor = Ucr(ID);
+    ur = Ucr(IU) / rhor;
+    vr = Ucr(IV) / rhor;
+    wr = Ucr(IW) / rhor;
     ekinr = 0.5 * (ur * ur + vr * vr + wr * wr) * rhor;
-    egr = rhor * Ucr[IG];
-    pr = (Ucr[IE] - ekinr - egr) * (gam - 1.0);
+    egr = rhor * Ucr(IG);
+    pr = (Ucr(IE) - ekinr - egr) * (gam - 1.0);
     ar = rhor * std::sqrt(gam * pr / rhor);
 
     // Calculate face-centered properties
@@ -372,24 +372,24 @@ void compute_flux(std::array<double, conv_variables::nvar> const& Ucl, std::arra
 
     // Calculate fluxes based on the wave speed (ustar)
     if (ustar > 0.0) {
-        flux[ID] = ustar * Ucl[ID];
-        flux[IU] = ustar * Ucl[IU] + pstar;
-        flux[IV] = ustar * Ucl[IV];
-        flux[IW] = ustar * Ucl[IW];
-        flux[IE] = ustar * Ucl[IE] + pstar * ustar;
+        flux(ID) = ustar * Ucl(ID);
+        flux(IU) = ustar * Ucl(IU) + pstar;
+        flux(IV) = ustar * Ucl(IV);
+        flux(IW) = ustar * Ucl(IW);
+        flux(IE) = ustar * Ucl(IE) + pstar * ustar;
     } else {
-        flux[ID] = ustar * Ucr[ID];
-        flux[IU] = ustar * Ucr[IU] + pstar;
-        flux[IV] = ustar * Ucr[IV];
-        flux[IW] = ustar * Ucr[IW];
-        flux[IE] = ustar * Ucr[IE] + pstar * ustar;
+        flux(ID) = ustar * Ucr(ID);
+        flux(IU) = ustar * Ucr(IU) + pstar;
+        flux(IV) = ustar * Ucr(IV);
+        flux(IW) = ustar * Ucr(IW);
+        flux(IE) = ustar * Ucr(IE) + pstar * ustar;
     }
 }
 
 // This function swaps the x and y or z velocity components in a given array.
 // It takes a one-dimensional array 'arr' as input/output and exchanges and the y/z direction
 // the values at indices IU and IV/IW, which represent the x and y/z velocities respectively.
-void swap_direction(std::array<double, conv_variables::nvar>& arr, int IVW) {
+void swap_direction(const Kokkos::View<double*> arr, int IVW) {
     double temp;  // Temporary variable for swapping
     // Swap the x and y velocity components
     temp = arr[conv_variables::IU];         // Store the x-velocity in a temporary variable
@@ -403,89 +403,90 @@ void swap_direction(std::array<double, conv_variables::nvar>& arr, int IVW) {
 // gravitational and thermal source terms. The computations involve updating
 // the energy and temperature based on fluid dynamics principles and the
 // conservation equations.
-void compute_kernel(Array const& Uold, Array& Unew, double dt) {
+void compute_kernel(Kokkos::View<double****> Uold, Kokkos::View<double****> Unew, double dt) {
     using namespace conv_variables;
 
-    // Loop variables
-    int i, j, k, ivar;
     // State vectors for left and right states and computed flux
-    std::array<double, nvar> Ul, Ur, flux;
-    // Variables for energy and temperature calculations
-    double egc, ekinc, rhoc, Tc, Teq, Tnew, uc, vc, wc;
+    Kokkos::View<double*> Ul("Ul",nvar), Ur("Ur",nvar), flux("flux",nvar);
 
     // Loop over the grid cells
-    for (i = 1; i <= nx; ++i) {
-        for (j = 1; j <= ny; ++j) {
-            for (k = 1; k <= nz; ++k) {
+    Kokkos::parallel_for("compute_kernel", 
+        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
+        KOKKOS_LAMBDA (int i, int j, int k){
+                // Variables for energy and temperature calculations
+                double egc, ekinc, rhoc, Tc, Teq, Tnew, uc, vc, wc;
                 // Compute fluxes in the x direction (left and right)
                 // Left flux in x direction
                 for (ivar = 0; ivar < nvar; ++ivar){
-                    Ul[ivar] = Uold(i-1, j, k, ivar);
-                    Ur[ivar] = Uold(i, j, k, ivar);
+                    Ul(ivar) = Uold(i-1, j, k, ivar);
+                    Ur(ivar) = Uold(i, j, k, ivar);
                 }
-                std::fill(flux.begin(), flux.end(), 0.0);
+                // Init flux
+                for (ivar = 0; ivar < nvar; ++ivar){
+                    flux(ivar) = 0.;
+                }
                 compute_flux(Ul, Ur, 0.0, flux);
                 for (ivar = 0; ivar < nvar; ++ivar) {
-                    Unew(i, j, k, ivar) += dt / dx * flux[ivar];
+                    Unew(i, j, k, ivar) += dt / dx * flux(ivar);
                 }
                 // Right flux in x direction
                 for (ivar = 0; ivar < nvar; ++ivar){
-                    Ul[ivar] = Uold(i, j, k, ivar);
-                    Ur[ivar] = Uold(i+1, j, k, ivar);
+                    Ul(ivar) = Uold(i, j, k, ivar);
+                    Ur(ivar) = Uold(i+1, j, k, ivar);
                 }
                 compute_flux(Ul, Ur, 0.0, flux);
                 for (ivar = 0; ivar < nvar; ++ivar) {
-                    Unew(i, j, k, ivar) -= dt / dx * flux[ivar];
+                    Unew(i, j, k, ivar) -= dt / dx * flux(ivar);
                 }
                 // Compute fluxes in the y direction (up and down)
                 // Left flux in y direction
                 for (ivar = 0; ivar < nvar; ++ivar){
-                    Ul[ivar] = Uold(i, j-1, k, ivar);
-                    Ur[ivar] = Uold(i, j, k, ivar);
+                    Ul(ivar) = Uold(i, j-1, k, ivar);
+                    Ur(ivar) = Uold(i, j, k, ivar);
                 }
                 swap_direction(Ul, IV);
                 swap_direction(Ur, IV);
                 compute_flux(Ul, Ur, 0.0, flux);
                 swap_direction(flux, IV);
                 for (ivar = 0; ivar < nvar; ++ivar) {
-                    Unew(i, j, k, ivar) += dt / dy * flux[ivar];
+                    Unew(i, j, k, ivar) += dt / dy * flux(ivar);
                 }
                 // Right flux in y direction
                 for (ivar = 0; ivar < nvar; ++ivar){
-                    Ul[ivar] = Uold(i, j, k, ivar);
-                    Ur[ivar] = Uold(i, j+1, k, ivar);
+                    Ul(ivar) = Uold(i, j, k, ivar);
+                    Ur(ivar) = Uold(i, j+1, k, ivar);
                 }
                 swap_direction(Ul, IV);
                 swap_direction(Ur, IV);
                 compute_flux(Ul, Ur, 0.0, flux);
                 swap_direction(flux, IV);
                 for (ivar = 0; ivar < nvar; ++ivar) {
-                    Unew(i, j, k, ivar) -= dt / dy * flux[ivar];
+                    Unew(i, j, k, ivar) -= dt / dy * flux(ivar);
                 }
                 // Compute fluxes in the z direction (up and down)
                 // Left flux in z direction
                 for (ivar = 0; ivar < nvar; ++ivar){
-                    Ul[ivar] = Uold(i, j, k-1, ivar);
-                    Ur[ivar] = Uold(i, j, k, ivar);
+                    Ul(ivar) = Uold(i, j, k-1, ivar);
+                    Ur(ivar) = Uold(i, j, k, ivar);
                 }
                 swap_direction(Ul, IW);
                 swap_direction(Ur, IW);
                 compute_flux(Ul, Ur, grav * dz, flux);
                 swap_direction(flux, IW);
                 for (ivar = 0; ivar < nvar; ++ivar) {
-                    Unew(i, j, k, ivar) += dt / dz * flux[ivar];
+                    Unew(i, j, k, ivar) += dt / dz * flux(ivar);
                 }
                 // Right flux in z direction
                 for (ivar = 0; ivar < nvar; ++ivar){
-                    Ul[ivar] = Uold(i, j, k, ivar);
-                    Ur[ivar] = Uold(i, j, k+1, ivar);
+                    Ul(ivar) = Uold(i, j, k, ivar);
+                    Ur(ivar) = Uold(i, j, k+1, ivar);
                 }
                 swap_direction(Ul, IW);
                 swap_direction(Ur, IW);
                 compute_flux(Ul, Ur, grav * dz, flux);
                 swap_direction(flux, IW);
                 for (ivar = 0; ivar < nvar; ++ivar) {
-                    Unew(i, j, k, ivar) -= dt / dz * flux[ivar];
+                    Unew(i, j, k, ivar) -= dt / dz * flux(ivar);
                 }
                 // Gravity source term
                 Unew(i, j, k, IW) += dt * 0.25 * (Uold(i, j, k-1, ID) + 2 * Uold(i, j, k, ID) + Uold(i, j, k+1, ID)) * grav;
@@ -500,9 +501,7 @@ void compute_kernel(Array const& Uold, Array& Unew, double dt) {
                 Teq = T_bottom + dTdz * (zc[k] - zc[1]);
                 Tnew = (Tc + Teq * dt / tau) / (1.0 + dt / tau);
                 Unew(i, j, k, IE) = rhoc * cv * Tnew + ekinc + egc;
-            }
-        }
-    }
+            });
 }
 
 // This function generates a linearly spaced array of points between a specified start and stop value.
@@ -592,8 +591,8 @@ int main(int argc, char* argv[]) {
         // Compute the time step for the next iteration
         dt = cfl * compute_timestep(Uold);
 
-        // // Solve the hydrodynamic equations using the kernel
-        // compute_kernel(Uold, Unew, dt);
+        // Solve the hydrodynamic equations using the kernel
+        compute_kernel(Uold, Unew, dt);
 
         // // Update Uold with the new values from Unew and apply boundary conditions
         // Uold = Unew;
