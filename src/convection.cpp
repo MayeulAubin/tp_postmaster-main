@@ -294,7 +294,7 @@ void compute_boundary_condition(Kokkos::View<double****>  U) {
 
     // Periodic boundary conditions in the y-direction
     Kokkos::parallel_for("BC_y", 
-        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({0, 0, 0}, {nx+2 nz+2, nvar}), 
+        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({0, 0, 0}, {nx+2, nz+2, nvar}), 
         KOKKOS_LAMBDA (int i, int k, int ivar){
             U(i, 0, k, ivar) = U(i, ny, k, ivar);      // Left boundary
             U(i, ny + 1, k, ivar) = U(i, 1, k, ivar);  // Right boundary
