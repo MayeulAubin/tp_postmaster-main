@@ -272,7 +272,7 @@ void compute_boundary_condition(Kokkos::View<double****>  U) {
             ekin0 = ekin1 / rho1 * rho0;
             eg0 = rho0 * (-grav * zc[nz + 1]);
             U(i, j, nz + 1, IE) = rho0 * cv * T0 + ekin0 + eg0;
-            U(i, j, nz + 1, IG) = -grav * zc[nz + 1);
+            U(i, j, nz + 1, IG) = -grav * zc[nz + 1];
         });
 
     // Periodic boundary conditions in the x-direction
@@ -413,95 +413,96 @@ void compute_kernel(Kokkos::View<double****> Uold, Kokkos::View<double****> Unew
     Kokkos::parallel_for("compute_kernel", 
         Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
         KOKKOS_LAMBDA (int i, int j, int k){
-                // Variables for energy and temperature calculations
-                double egc, ekinc, rhoc, Tc, Teq, Tnew, uc, vc, wc;
-                // Compute fluxes in the x direction (left and right)
-                // Left flux in x direction
-                for (ivar = 0; ivar < nvar; ++ivar){
-                    Ul(ivar) = Uold(i-1, j, k, ivar);
-                    Ur(ivar) = Uold(i, j, k, ivar);
-                }
-                // Init flux
-                for (ivar = 0; ivar < nvar; ++ivar){
-                    flux(ivar) = 0.;
-                }
-                compute_flux(Ul, Ur, 0.0, flux);
-                for (ivar = 0; ivar < nvar; ++ivar) {
-                    Unew(i, j, k, ivar) += dt / dx * flux(ivar);
-                }
-                // Right flux in x direction
-                for (ivar = 0; ivar < nvar; ++ivar){
-                    Ul(ivar) = Uold(i, j, k, ivar);
-                    Ur(ivar) = Uold(i+1, j, k, ivar);
-                }
-                compute_flux(Ul, Ur, 0.0, flux);
-                for (ivar = 0; ivar < nvar; ++ivar) {
-                    Unew(i, j, k, ivar) -= dt / dx * flux(ivar);
-                }
-                // Compute fluxes in the y direction (up and down)
-                // Left flux in y direction
-                for (ivar = 0; ivar < nvar; ++ivar){
-                    Ul(ivar) = Uold(i, j-1, k, ivar);
-                    Ur(ivar) = Uold(i, j, k, ivar);
-                }
-                swap_direction(Ul, IV);
-                swap_direction(Ur, IV);
-                compute_flux(Ul, Ur, 0.0, flux);
-                swap_direction(flux, IV);
-                for (ivar = 0; ivar < nvar; ++ivar) {
-                    Unew(i, j, k, ivar) += dt / dy * flux(ivar);
-                }
-                // Right flux in y direction
-                for (ivar = 0; ivar < nvar; ++ivar){
-                    Ul(ivar) = Uold(i, j, k, ivar);
-                    Ur(ivar) = Uold(i, j+1, k, ivar);
-                }
-                swap_direction(Ul, IV);
-                swap_direction(Ur, IV);
-                compute_flux(Ul, Ur, 0.0, flux);
-                swap_direction(flux, IV);
-                for (ivar = 0; ivar < nvar; ++ivar) {
-                    Unew(i, j, k, ivar) -= dt / dy * flux(ivar);
-                }
-                // Compute fluxes in the z direction (up and down)
-                // Left flux in z direction
-                for (ivar = 0; ivar < nvar; ++ivar){
-                    Ul(ivar) = Uold(i, j, k-1, ivar);
-                    Ur(ivar) = Uold(i, j, k, ivar);
-                }
-                swap_direction(Ul, IW);
-                swap_direction(Ur, IW);
-                compute_flux(Ul, Ur, grav * dz, flux);
-                swap_direction(flux, IW);
-                for (ivar = 0; ivar < nvar; ++ivar) {
-                    Unew(i, j, k, ivar) += dt / dz * flux(ivar);
-                }
-                // Right flux in z direction
-                for (ivar = 0; ivar < nvar; ++ivar){
-                    Ul(ivar) = Uold(i, j, k, ivar);
-                    Ur(ivar) = Uold(i, j, k+1, ivar);
-                }
-                swap_direction(Ul, IW);
-                swap_direction(Ur, IW);
-                compute_flux(Ul, Ur, grav * dz, flux);
-                swap_direction(flux, IW);
-                for (ivar = 0; ivar < nvar; ++ivar) {
-                    Unew(i, j, k, ivar) -= dt / dz * flux(ivar);
-                }
-                // Gravity source term
-                Unew(i, j, k, IW) += dt * 0.25 * (Uold(i, j, k-1, ID) + 2 * Uold(i, j, k, ID) + Uold(i, j, k+1, ID)) * grav;
-                // Thermal source term
-                rhoc = Unew(i, j, k, ID);
-                uc = Unew(i, j, k, IU) / rhoc;
-                vc = Unew(i, j, k, IV) / rhoc;
-                wc = Unew(i, j, k, IW) / rhoc;
-                ekinc = 0.5 * (uc * uc + vc * vc + wc * wc) * rhoc;
-                egc = rhoc * Unew(i, j, k, IG);
-                Tc = (Unew(i, j, k, IE) - ekinc - egc) / (cv * rhoc);
-                Teq = T_bottom + dTdz * (zc[k] - zc[1]);
-                Tnew = (Tc + Teq * dt / tau) / (1.0 + dt / tau);
-                Unew(i, j, k, IE) = rhoc * cv * Tnew + ekinc + egc;
-            });
+            int ivar;
+            // Variables for energy and temperature calculations
+            double egc, ekinc, rhoc, Tc, Teq, Tnew, uc, vc, wc;
+            // Compute fluxes in the x direction (left and right)
+            // Left flux in x direction
+            for (ivar = 0; ivar < nvar; ++ivar){
+                Ul(ivar) = Uold(i-1, j, k, ivar);
+                Ur(ivar) = Uold(i, j, k, ivar);
+            }
+            // Init flux
+            for (ivar = 0; ivar < nvar; ++ivar){
+                flux(ivar) = 0.;
+            }
+            compute_flux(Ul, Ur, 0.0, flux);
+            for (ivar = 0; ivar < nvar; ++ivar) {
+                Unew(i, j, k, ivar) += dt / dx * flux(ivar);
+            }
+            // Right flux in x direction
+            for (ivar = 0; ivar < nvar; ++ivar){
+                Ul(ivar) = Uold(i, j, k, ivar);
+                Ur(ivar) = Uold(i+1, j, k, ivar);
+            }
+            compute_flux(Ul, Ur, 0.0, flux);
+            for (ivar = 0; ivar < nvar; ++ivar) {
+                Unew(i, j, k, ivar) -= dt / dx * flux(ivar);
+            }
+            // Compute fluxes in the y direction (up and down)
+            // Left flux in y direction
+            for (ivar = 0; ivar < nvar; ++ivar){
+                Ul(ivar) = Uold(i, j-1, k, ivar);
+                Ur(ivar) = Uold(i, j, k, ivar);
+            }
+            swap_direction(Ul, IV);
+            swap_direction(Ur, IV);
+            compute_flux(Ul, Ur, 0.0, flux);
+            swap_direction(flux, IV);
+            for (ivar = 0; ivar < nvar; ++ivar) {
+                Unew(i, j, k, ivar) += dt / dy * flux(ivar);
+            }
+            // Right flux in y direction
+            for (ivar = 0; ivar < nvar; ++ivar){
+                Ul(ivar) = Uold(i, j, k, ivar);
+                Ur(ivar) = Uold(i, j+1, k, ivar);
+            }
+            swap_direction(Ul, IV);
+            swap_direction(Ur, IV);
+            compute_flux(Ul, Ur, 0.0, flux);
+            swap_direction(flux, IV);
+            for (ivar = 0; ivar < nvar; ++ivar) {
+                Unew(i, j, k, ivar) -= dt / dy * flux(ivar);
+            }
+            // Compute fluxes in the z direction (up and down)
+            // Left flux in z direction
+            for (ivar = 0; ivar < nvar; ++ivar){
+                Ul(ivar) = Uold(i, j, k-1, ivar);
+                Ur(ivar) = Uold(i, j, k, ivar);
+            }
+            swap_direction(Ul, IW);
+            swap_direction(Ur, IW);
+            compute_flux(Ul, Ur, grav * dz, flux);
+            swap_direction(flux, IW);
+            for (ivar = 0; ivar < nvar; ++ivar) {
+                Unew(i, j, k, ivar) += dt / dz * flux(ivar);
+            }
+            // Right flux in z direction
+            for (ivar = 0; ivar < nvar; ++ivar){
+                Ul(ivar) = Uold(i, j, k, ivar);
+                Ur(ivar) = Uold(i, j, k+1, ivar);
+            }
+            swap_direction(Ul, IW);
+            swap_direction(Ur, IW);
+            compute_flux(Ul, Ur, grav * dz, flux);
+            swap_direction(flux, IW);
+            for (ivar = 0; ivar < nvar; ++ivar) {
+                Unew(i, j, k, ivar) -= dt / dz * flux(ivar);
+            }
+            // Gravity source term
+            Unew(i, j, k, IW) += dt * 0.25 * (Uold(i, j, k-1, ID) + 2 * Uold(i, j, k, ID) + Uold(i, j, k+1, ID)) * grav;
+            // Thermal source term
+            rhoc = Unew(i, j, k, ID);
+            uc = Unew(i, j, k, IU) / rhoc;
+            vc = Unew(i, j, k, IV) / rhoc;
+            wc = Unew(i, j, k, IW) / rhoc;
+            ekinc = 0.5 * (uc * uc + vc * vc + wc * wc) * rhoc;
+            egc = rhoc * Unew(i, j, k, IG);
+            Tc = (Unew(i, j, k, IE) - ekinc - egc) / (cv * rhoc);
+            Teq = T_bottom + dTdz * (zc[k] - zc[1]);
+            Tnew = (Tc + Teq * dt / tau) / (1.0 + dt / tau);
+            Unew(i, j, k, IE) = rhoc * cv * Tnew + ekinc + egc;
+        });
 }
 
 // This function generates a linearly spaced array of points between a specified start and stop value.
