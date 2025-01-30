@@ -29,7 +29,7 @@ CMakeFiles
 CMakeCache.txt
 cmake_install.cmake
 Makefile
-exe01
+exe*
 
 # Output files
 output*
