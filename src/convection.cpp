@@ -535,7 +535,7 @@ int main(int argc, char* argv[]) {
 
     // Simulation parameters
     nx = 100;  // Number of grid cells in x-direction
-    ny = 2;    // Number of grid cells in y-direction
+    ny = 1;    // Number of grid cells in y-direction
     nz = 50;   // Number of grid cells in z-direction
     nt = 300; // Total number of time steps to simulate
     cfl = 0.45; // CFL condition for stability
