@@ -537,9 +537,9 @@ int main(int argc, char* argv[]) {
     nx = 100;  // Number of grid cells in x-direction
     ny = 2;    // Number of grid cells in y-direction
     nz = 50;   // Number of grid cells in z-direction
-    nt = 3000; // Total number of time steps to simulate
+    nt = 300; // Total number of time steps to simulate
     cfl = 0.45; // CFL condition for stability
-    freq_output = 150; // Frequency of output writing (every 150 time steps)
+    freq_output = 10; // Frequency of output writing (every 150 time steps)
     Lx = 2.0;  // Length of the domain in x-direction
     Ly = 1.0;  // Length of the domain in y-direction
     Lz = 1.0;  // Length of the domain in z-direction
