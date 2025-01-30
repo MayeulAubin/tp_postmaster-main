@@ -20,6 +20,7 @@ namespace conv_variables {
         IE = 4,   // Variable identifier for total energy
         IG = 5    // Variable identifier for gravitational potential energy
     };
+    double EPS=1.0e-10;  // Small number to prevent division by zero
     int nx, ny, nz;  // Grid dimensions and simulation parameters
     double Lx, Ly, Lz, gam, cv, grav;  // Physical constants and parameters
     double tau, T_bottom, rho_bottom, dTdz, dx, dy, dz;  // Additional parameters for temperature and grid spacing
@@ -44,9 +45,9 @@ void fill_data(Kokkos::View<double**> data, Kokkos::View<double****> U) {
             double rhoc, uc, vc, wc, ekinc, egc, Tc;
             // Retrieve density and velocity components
             rhoc = U(i, j, k, ID);              // Density
-            uc = U(i, j, k, IU) / rhoc;         // X-velocity
-            vc = U(i, j, k, IV) / rhoc;         // Y-velocity
-            wc = U(i, j, k, IW) / rhoc;         // Z-velocity
+            uc = U(i, j, k, IU) / (rhoc+EPS);         // X-velocity
+            vc = U(i, j, k, IV) / (rhoc+EPS);         // Y-velocity
+            wc = U(i, j, k, IW) / (rhoc+EPS);         // Z-velocity
 
             // Calculate kinetic and gravitational energy
             ekinc = 0.5 * (uc * uc + vc * vc + wc * wc) * rhoc;  // Kinetic energy
@@ -84,7 +85,7 @@ void write_output(int it, int freq_output,Kokkos::View<double****>  U) {
     Kokkos::parallel_reduce("find_max_output", 
         Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
         KOKKOS_LAMBDA (int i, int j, int k, double& Ekin){
-                Ekin = 0.5 * (U(i, j, k, IU)*U(i, j, k, IU) + U(i, j, k, IV)*U(i, j, k, IV) + U(i, j, k, IW)*U(i, j, k, IW))/U(i, j, k, ID);
+                Ekin = 0.5 * (U(i, j, k, IU)*U(i, j, k, IU) + U(i, j, k, IV)*U(i, j, k, IV) + U(i, j, k, IW)*U(i, j, k, IW))/(U(i, j, k, ID)+EPS);
         },
         Kokkos::Max<double>(ekin_max));
      
@@ -165,7 +166,7 @@ void compute_initial_condition(Kokkos::View<double****> U) {
 
                 // Calculate the density at the current grid cell using the temperature gradient
                 rhor = rhol * ((gam - 1.0) * cv * Tl + 0.5 * grav * dz) /
-                             ((gam - 1.0) * cv * Tr - 0.5 * grav * dz);
+                             ((gam - 1.0) * cv * Tr - 0.5 * grav * dz + EPS);
 
                 ur = 0.0;  // Set initial x-velocity to zero
                 vr = 0.0;  // Set initial y-velocity to zero
@@ -204,33 +205,33 @@ void compute_boundary_condition(Kokkos::View<double****>  U) {
             double T0, rho0, ekin0, eg0;
             // Get the values from the second layer
             rho2 = U(i, j, 2, ID);
-            u2 = U(i, j, 2, IU) / rho2;
-            v2 = U(i, j, 2, IV) / rho2;
-            w2 = U(i, j, 2, IW) / rho2;
+            u2 = U(i, j, 2, IU) / (rho2+EPS);
+            v2 = U(i, j, 2, IV) / (rho2+EPS);
+            w2 = U(i, j, 2, IW) / (rho2+EPS);
             ekin2 = 0.5 * (u2 * u2 + v2 * v2 + w2 * w2) * rho2;
             eg2 = rho2 * U(i, j, 2, IG);
             T2 = (U(i, j, 2, IE) - ekin2 - eg2) / (cv * rho2);
 
             // Get the values from the first layer
             rho1 = U(i, j, 1, ID);
-            u1 = U(i, j, 1, IU) / rho1;
-            v1 = U(i, j, 1, IV) / rho1;
-            w1 = U(i, j, 1, IW) / rho1;
+            u1 = U(i, j, 1, IU) / (rho1+EPS);
+            v1 = U(i, j, 1, IV) / (rho1+EPS);
+            w1 = U(i, j, 1, IW) / (rho1+EPS);
             ekin1 = 0.5 * (u1 * u1 + v1 * v1 + w1 * w1) * rho1;
             eg1 = rho1 * U(i, j, 1, IG);
-            T1 = (U(i, j, 1, IE) - ekin1 - eg1) / (cv * rho1);
+            T1 = (U(i, j, 1, IE) - ekin1 - eg1) / (cv * rho1 + EPS);
 
             // Calculate the extrapolated values
             T0 = 2.0 * T1 - T2;
             rho0 = rho1 * ((gam - 1.0) * cv * T1 - 0.5 * grav * dz) /
-                        ((gam - 1.0) * cv * T0 + 0.5 * grav * dz);
+                        ((gam - 1.0) * cv * T0 + 0.5 * grav * dz + EPS);
 
             // Set boundary conditions for the bottom layer
             U(i, j, 0, ID) = rho0;
             U(i, j, 0, IU) = rho0 * u1;
             U(i, j, 0, IV) = rho0 * v1;
             U(i, j, 0, IW) = -rho0 * w1;
-            ekin0 = ekin1 / rho1 * rho0;
+            ekin0 = ekin1 / (rho1+EPS) * rho0;
             eg0 = rho0 * (-grav * zc[1]);
             U(i, j, 0, IE) = rho0 * cv * T0 + ekin0 + eg0;
             U(i, j, 0, IG) = -grav * zc[1];
@@ -245,17 +246,17 @@ void compute_boundary_condition(Kokkos::View<double****>  U) {
             double rho1, u1, v1, w1, ekin1, eg1, T1;
             double T0, rho0, ekin0, eg0;
             rho2 = U(i, j, nz - 1, ID);
-            u2 = U(i, j, nz - 1, IU) / rho2;
-            v2 = U(i, j, nz - 1, IV) / rho2;
-            w2 = U(i, j, nz - 1, IW) / rho2;
+            u2 = U(i, j, nz - 1, IU) / (rho2+EPS);
+            v2 = U(i, j, nz - 1, IV) / (rho2+EPS);
+            w2 = U(i, j, nz - 1, IW) / (rho2+EPS);
             ekin2 = 0.5 * (u2 * u2 + v2 * v2 + w2 * w2) * rho2;
             eg2 = rho2 * U(i, j, nz - 1, IG);
             T2 = (U(i, j, nz - 1, IE) - ekin2 - eg2) / (cv * rho2);
 
             rho1 = U(i, j, nz, ID);
-            u1 = U(i, j, nz, IU) / rho1;
-            v1 = U(i, j, nz, IV) / rho1;
-            w1 = U(i, j, nz, IW) / rho1;
+            u1 = U(i, j, nz, IU) / (rho1+EPS);
+            v1 = U(i, j, nz, IV) / (rho1+EPS);
+            w1 = U(i, j, nz, IW) / (rho1+EPS);
             ekin1 = 0.5 * (u1 * u1 + v1 * v1 + w1 * w1) * rho1;
             eg1 = rho1 * U(i, j, nz, IG);
             T1 = (U(i, j, nz, IE) - ekin1 - eg1) / (cv * rho1);
@@ -269,7 +270,7 @@ void compute_boundary_condition(Kokkos::View<double****>  U) {
             U(i, j, nz + 1, IU) = rho0 * u1;
             U(i, j, nz + 1, IV) = rho0 * v1;
             U(i, j, nz + 1, IW) = -rho0 * w1;
-            ekin0 = ekin1 / rho1 * rho0;
+            ekin0 = ekin1 / (rho1+EPS) * rho0;
             eg0 = rho0 * (-grav * zc[nz + 1]);
             U(i, j, nz + 1, IE) = rho0 * cv * T0 + ekin0 + eg0;
             U(i, j, nz + 1, IG) = -grav * zc[nz + 1];
@@ -311,9 +312,9 @@ double compute_timestep(Kokkos::View<double****> U) {
             double rhoc, uc, vc, wc, ekinc, egc, pc, ac;
             // Calculate the density and velocity components
             rhoc = U(i, j, k, ID);
-            uc = U(i, j, k, IU) / rhoc;  // X-velocity
-            vc = U(i, j, k, IV) / rhoc;  // Y-velocity
-            wc = U(i, j, k, IW) / rhoc;  // Z-velocity
+            uc = U(i, j, k, IU) / (rhoc+EPS);  // X-velocity
+            vc = U(i, j, k, IV) / (rhoc+EPS);  // Y-velocity
+            wc = U(i, j, k, IW) / (rhoc+EPS);  // Z-velocity
 
             // Calculate kinetic and gravitational energy
             ekinc = 0.5 * (uc * uc + vc * vc + wc * wc) * rhoc;
@@ -321,7 +322,7 @@ double compute_timestep(Kokkos::View<double****> U) {
 
             // Calculate pressure and sound speed
             pc = (U(i, j, k, IE) - ekinc - egc) * (gam - 1.0);
-            ac = std::sqrt(gam * pc / rhoc);  // Speed of sound
+            ac = std::sqrt(gam * pc / (rhoc+EPS));  // Speed of sound
 
             // Calculate the local time step based on CFL condition
             dt_loc = std::min(std::min(dx, dy), dz) / (ac + std::sqrt(uc * uc + vc * vc + wc * wc));
@@ -346,28 +347,28 @@ void compute_flux(const Kokkos::View<double*> Ucl, const Kokkos::View<double*> U
 
     // Calculate left state properties
     rhol = Ucl(ID);
-    ul = Ucl(IU) / rhol;
-    vl = Ucl(IV) / rhol;
-    wl = Ucl(IW) / rhol;
+    ul = Ucl(IU) / (rhol+EPS);
+    vl = Ucl(IV) / (rhol+EPS);
+    wl = Ucl(IW) / (rhol+EPS);
     ekinl = 0.5 * (ul * ul + vl * vl + wl * wl) * rhol;
     egl = rhol * Ucl(IG);
     pl = (Ucl(IE) - ekinl - egl) * (gam - 1.0);
-    al = rhol * std::sqrt(gam * pl / rhol);
+    al = rhol * std::sqrt(gam * pl / (rhol+EPS));
 
     // Calculate right state properties
     rhor = Ucr(ID);
-    ur = Ucr(IU) / rhor;
-    vr = Ucr(IV) / rhor;
-    wr = Ucr(IW) / rhor;
+    ur = Ucr(IU) / (rhor+EPS);
+    vr = Ucr(IV) / (rhor+EPS);
+    wr = Ucr(IW) / (rhor+EPS);
     ekinr = 0.5 * (ur * ur + vr * vr + wr * wr) * rhor;
     egr = rhor * Ucr(IG);
     pr = (Ucr(IE) - ekinr - egr) * (gam - 1.0);
-    ar = rhor * std::sqrt(gam * pr / rhor);
+    ar = rhor * std::sqrt(gam * pr / (rhor+EPS));
 
     // Calculate face-centered properties
     aface = 1.1 * std::max(al, ar);  // Face speed
     ustar = 0.5 * (ul + ur) - 0.5 * (pr - pl - 0.5 * (rhol + rhor) * gravdx) / aface;
-    theta = std::min(std::fabs(ustar) / std::max(al / rhol, ar / rhor), 1.0);  // Non-dimensional speed
+    theta = std::min(std::fabs(ustar) / std::max(al / (rhol+EPS), ar / (rhor+EPS)), 1.0);  // Non-dimensional speed
     pstar = 0.5 * (pl + pr) - 0.5 * (ur - ul) * aface * theta;  // Star pressure
 
     // Calculate fluxes based on the wave speed (ustar)
@@ -493,12 +494,12 @@ void compute_kernel(Kokkos::View<double****> Uold, Kokkos::View<double****> Unew
             Unew(i, j, k, IW) += dt * 0.25 * (Uold(i, j, k-1, ID) + 2 * Uold(i, j, k, ID) + Uold(i, j, k+1, ID)) * grav;
             // Thermal source term
             rhoc = Unew(i, j, k, ID);
-            uc = Unew(i, j, k, IU) / rhoc;
-            vc = Unew(i, j, k, IV) / rhoc;
-            wc = Unew(i, j, k, IW) / rhoc;
+            uc = Unew(i, j, k, IU) / (rhoc+EPS);
+            vc = Unew(i, j, k, IV) / (rhoc+EPS);
+            wc = Unew(i, j, k, IW) / (rhoc+EPS);
             ekinc = 0.5 * (uc * uc + vc * vc + wc * wc) * rhoc;
             egc = rhoc * Unew(i, j, k, IG);
-            Tc = (Unew(i, j, k, IE) - ekinc - egc) / (cv * rhoc);
+            Tc = (Unew(i, j, k, IE) - ekinc - egc) / (cv * rhoc + EPS);
             Teq = T_bottom + dTdz * (zc[k] - zc[1]);
             Tnew = (Tc + Teq * dt / tau) / (1.0 + dt / tau);
             Unew(i, j, k, IE) = rhoc * cv * Tnew + ekinc + egc;
@@ -535,7 +536,7 @@ int main(int argc, char* argv[]) {
 
     // Simulation parameters
     nx = 100;  // Number of grid cells in x-direction
-    ny = 1;    // Number of grid cells in y-direction
+    ny = 2;    // Number of grid cells in y-direction
     nz = 50;   // Number of grid cells in z-direction
     nt = 300; // Total number of time steps to simulate
     cfl = 0.45; // CFL condition for stability
