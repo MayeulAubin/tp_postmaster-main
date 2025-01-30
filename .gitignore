@@ -23,3 +23,13 @@ build*
 
 # Apple
 .DS_Store
+
+# CMake files
+CMakeFiles
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+exe01
+
+# Output files
+output*
