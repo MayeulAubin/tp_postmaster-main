@@ -23,20 +23,19 @@ namespace conv_variables {
     int nx, ny, nz;  // Grid dimensions and simulation parameters
     double Lx, Ly, Lz, gam, cv, grav;  // Physical constants and parameters
     double tau, T_bottom, rho_bottom, dTdz, dx, dy, dz;  // Additional parameters for temperature and grid spacing
-    Kokkos::View<double*> xc, yc, zc;  // Arrays for x, y, and z cell center coordinates with ghosts
 }
 
 // This function fills an output data array with the state variables of the fluid simulation
 // at each grid cell. It computes the density, velocity components, kinetic energy, gravitational energy,
 // and temperature for each cell in the grid and stores these values in the provided data array.
-void fill_data(Kokkos::View<double**> data, Kokkos::View<double****> U) {
+void fill_data(Kokkos::View<double**> data, Kokkos::View<double****>::HostView U, const Kokkos::View<double*>::HostView xc, const Kokkos::View<double*>::HostView yc, const Kokkos::View<double*>::HostView zc) {
     using namespace conv_variables;
 
     
 
     // Loop over all grid cells 
     Kokkos::parallel_for("fill_data", 
-        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
+        Kokkos::MDRangePolicy<Kokkos::DefaultHostExecutionSpace, Kokkos::Rank<3>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
         KOKKOS_LAMBDA (int i, int j, int k){
             // Loop variables
             int index;
@@ -73,7 +72,7 @@ void fill_data(Kokkos::View<double**> data, Kokkos::View<double****> U) {
 // This function writes the output of the fluid simulation to a CSV file at specified time steps.
 // It calculates the maximum kinetic energy across the grid, prints the current time step and kinetic energy,
 // and saves the simulation state to a file if the output frequency condition is met.
-void write_output(int it, int freq_output,Kokkos::View<double****>  U) {
+void write_output(int it, int freq_output, Kokkos::View<double****>::HostView  U, const Kokkos::View<double*>::HostView xc, const Kokkos::View<double*>::HostView yc, const Kokkos::View<double*>::HostView zc) {
     using namespace conv_variables;
 
     double ekin_max;
@@ -82,7 +81,7 @@ void write_output(int it, int freq_output,Kokkos::View<double****>  U) {
 
     // Calculate the maximum kinetic energy across the grid
     Kokkos::parallel_reduce("find_max_output", 
-        Kokkos::MDRangePolicy<Kokkos::DefaultExecutionSpace, Kokkos::Rank<3>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
+        Kokkos::MDRangePolicy<Kokkos::DefaultHostExecutionSpace, Kokkos::Rank<3>>({1, 1, 1}, {nx+1, ny+1, nz+1}), 
         KOKKOS_LAMBDA (int i, int j, int k, double& Ekin){
                 Ekin = std::max(Ekin,0.5 * (U(i, j, k, IU)*U(i, j, k, IU) + U(i, j, k, IV)*U(i, j, k, IV) + U(i, j, k, IW)*U(i, j, k, IW))/U(i, j, k, ID));
         },
@@ -97,10 +96,10 @@ void write_output(int it, int freq_output,Kokkos::View<double****>  U) {
         iout = it / freq_output; // Calculate output index
         std::cout << "write csv output: " << iout << '\n'; // Inform about the output being generated
 
-        Kokkos::View<double**> data("data_output", nx * ny * nz, nvar + 3);
+        Kokkos::View<double**>::HostView data("data_output", nx * ny * nz, nvar + 3);
 
         // Fill the data array with the current simulation state
-        fill_data(data, U);
+        fill_data(data, U, xc, yc, zc);
 
         // Generate the output file name
         std::stringstream ss_iout;
@@ -130,7 +129,7 @@ void write_output(int it, int freq_output,Kokkos::View<double****>  U) {
 // This function initializes the conditions for a fluid simulation in a 2D grid.
 // It sets the initial values for density, momentum, total energy, and gravitational potential energy
 // at each grid cell based on specified boundary conditions and temperature gradients.
-void compute_initial_condition(Kokkos::View<double****> U) {
+void compute_initial_condition(Kokkos::View<double****> U, const Kokkos::View<double*> xc, const Kokkos::View<double*> yc, const Kokkos::View<double*> zc) {
     using namespace conv_variables;
 
 
@@ -190,7 +189,7 @@ void compute_initial_condition(Kokkos::View<double****> U) {
 // two adjacent layers, and sets periodic boundary conditions in the x/y-directions.
 // The calculations involve density, velocity, kinetic energy, internal energy, and
 // temperature, taking into account gravitational effects.
-void compute_boundary_condition(Kokkos::View<double****>  U) {
+void compute_boundary_condition(Kokkos::View<double****>  U, const Kokkos::View<double*> xc, const Kokkos::View<double*> yc, const Kokkos::View<double*> zc) {
     using namespace conv_variables;
 
 
@@ -334,7 +333,8 @@ double compute_timestep(Kokkos::View<double****> U) {
 // It takes in left and right state vectors, gravitational acceleration, and outputs the flux vector.
 // The calculations involve determining various properties (density, velocity, energy) for both states,
 // as well as face-centered properties, and then applying a numerical flux method based on wave speeds.
-void compute_flux(const Kokkos::View<double*> Ucl, const Kokkos::View<double*> Ucr, double gravdx, Kokkos::View<double*> flux) {
+template<std::size_t nvar>
+void compute_flux(const Kokkos::Array<double, nvar> &Ucl, const Kokkos::Array<double, nvar> &Ucr, double gravdx, Kokkos::Array<double, nvar> &flux) {
     using namespace conv_variables;
 
     // Local variables for left state calculations
@@ -345,23 +345,23 @@ void compute_flux(const Kokkos::View<double*> Ucl, const Kokkos::View<double*> U
     double aface, ustar, theta, pstar;
 
     // Calculate left state properties
-    rhol = Ucl(ID);
-    ul = Ucl(IU) / rhol;
-    vl = Ucl(IV) / rhol;
-    wl = Ucl(IW) / rhol;
+    rhol = Ucl[ID];
+    ul = Ucl[IU] / rhol;
+    vl = Ucl[IV] / rhol;
+    wl = Ucl[IW] / rhol;
     ekinl = 0.5 * (ul * ul + vl * vl + wl * wl) * rhol;
-    egl = rhol * Ucl(IG);
-    pl = (Ucl(IE) - ekinl - egl) * (gam - 1.0);
+    egl = rhol * Ucl[IG];
+    pl = (Ucl[IE] - ekinl - egl) * (gam - 1.0);
     al = rhol * std::sqrt(gam * pl / rhol);
 
     // Calculate right state properties
-    rhor = Ucr(ID);
-    ur = Ucr(IU) / rhor;
-    vr = Ucr(IV) / rhor;
-    wr = Ucr(IW) / rhor;
+    rhor = Ucr[ID];
+    ur = Ucr[IU] / rhor;
+    vr = Ucr[IV] / rhor;
+    wr = Ucr[IW] / rhor;
     ekinr = 0.5 * (ur * ur + vr * vr + wr * wr) * rhor;
-    egr = rhor * Ucr(IG);
-    pr = (Ucr(IE) - ekinr - egr) * (gam - 1.0);
+    egr = rhor * Ucr[IG];
+    pr = (Ucr[IE] - ekinr - egr) * (gam - 1.0);
     ar = rhor * std::sqrt(gam * pr / rhor);
 
     // Calculate face-centered properties
@@ -370,26 +370,27 @@ void compute_flux(const Kokkos::View<double*> Ucl, const Kokkos::View<double*> U
     theta = std::min(std::fabs(ustar) / std::max(al / rhol, ar / rhor), 1.0);  // Non-dimensional speed
     pstar = 0.5 * (pl + pr) - 0.5 * (ur - ul) * aface * theta;  // Star pressure
 
-    // Calculate fluxes based on the wave speed (ustar)
+    // Calculate fluxes based on the wave speed (ustar]
     if (ustar > 0.0) {
-        flux(ID) = ustar * Ucl(ID);
-        flux(IU) = ustar * Ucl(IU) + pstar;
-        flux(IV) = ustar * Ucl(IV);
-        flux(IW) = ustar * Ucl(IW);
-        flux(IE) = ustar * Ucl(IE) + pstar * ustar;
+        flux[ID] = ustar * Ucl[ID];
+        flux[IU] = ustar * Ucl[IU] + pstar;
+        flux[IV] = ustar * Ucl[IV];
+        flux[IW] = ustar * Ucl[IW];
+        flux[IE] = ustar * Ucl[IE] + pstar * ustar;
     } else {
-        flux(ID) = ustar * Ucr(ID);
-        flux(IU) = ustar * Ucr(IU) + pstar;
-        flux(IV) = ustar * Ucr(IV);
-        flux(IW) = ustar * Ucr(IW);
-        flux(IE) = ustar * Ucr(IE) + pstar * ustar;
+        flux[ID] = ustar * Ucr[ID];
+        flux[IU] = ustar * Ucr[IU] + pstar;
+        flux[IV] = ustar * Ucr[IV];
+        flux[IW] = ustar * Ucr[IW];
+        flux[IE] = ustar * Ucr[IE] + pstar * ustar;
     }
 }
 
 // This function swaps the x and y or z velocity components in a given array.
 // It takes a one-dimensional array 'arr' as input/output and exchanges and the y/z direction
 // the values at indices IU and IV/IW, which represent the x and y/z velocities respectively.
-void swap_direction(const Kokkos::View<double*> arr, int IVW) {
+template<std::size_t nvar>
+void swap_direction(const Kokkos::Array<double, nvar> arr, int IVW) {
     double temp;  // Temporary variable for swapping
     // Swap the x and y velocity components
     temp = arr[conv_variables::IU];         // Store the x-velocity in a temporary variable
@@ -403,11 +404,9 @@ void swap_direction(const Kokkos::View<double*> arr, int IVW) {
 // gravitational and thermal source terms. The computations involve updating
 // the energy and temperature based on fluid dynamics principles and the
 // conservation equations.
-void compute_kernel(Kokkos::View<double****> Uold, Kokkos::View<double****> Unew, double dt) {
+void compute_kernel(Kokkos::View<double****> Uold, Kokkos::View<double****> Unew, double dt, const Kokkos::View<double*> xc, const Kokkos::View<double*> yc, const Kokkos::View<double*> zc) {
     using namespace conv_variables;
 
-    // State vectors for left and right states and computed flux
-    Kokkos::View<double*> Ul("Ul",nvar), Ur("Ur",nvar), flux("flux",nvar);
 
     // Loop over the grid cells
     Kokkos::parallel_for("compute_kernel", 
@@ -416,78 +415,80 @@ void compute_kernel(Kokkos::View<double****> Uold, Kokkos::View<double****> Unew
             int ivar;
             // Variables for energy and temperature calculations
             double egc, ekinc, rhoc, Tc, Teq, Tnew, uc, vc, wc;
+            // State vectors for left and right states and computed flux
+            Kokkos::Array<double, nvar> Ul, Ur, flux;
             // Compute fluxes in the x direction (left and right)
             // Left flux in x direction
             for (ivar = 0; ivar < nvar; ++ivar){
-                Ul(ivar) = Uold(i-1, j, k, ivar);
-                Ur(ivar) = Uold(i, j, k, ivar);
+                Ul[ivar] = Uold(i-1, j, k, ivar);
+                Ur[ivar] = Uold(i, j, k, ivar);
             }
             // Init flux
             for (ivar = 0; ivar < nvar; ++ivar){
-                flux(ivar) = 0.;
+                flux[ivar] = 0.;
             }
             compute_flux(Ul, Ur, 0.0, flux);
             for (ivar = 0; ivar < nvar; ++ivar) {
-                Unew(i, j, k, ivar) += dt / dx * flux(ivar);
+                Unew(i, j, k, ivar) += dt / dx * flux[ivar];
             }
             // Right flux in x direction
             for (ivar = 0; ivar < nvar; ++ivar){
-                Ul(ivar) = Uold(i, j, k, ivar);
-                Ur(ivar) = Uold(i+1, j, k, ivar);
+                Ul[ivar] = Uold(i, j, k, ivar);
+                Ur[ivar] = Uold(i+1, j, k, ivar);
             }
             compute_flux(Ul, Ur, 0.0, flux);
             for (ivar = 0; ivar < nvar; ++ivar) {
-                Unew(i, j, k, ivar) -= dt / dx * flux(ivar);
+                Unew(i, j, k, ivar) -= dt / dx * flux[ivar];
             }
             // Compute fluxes in the y direction (up and down)
             // Left flux in y direction
             for (ivar = 0; ivar < nvar; ++ivar){
-                Ul(ivar) = Uold(i, j-1, k, ivar);
-                Ur(ivar) = Uold(i, j, k, ivar);
+                Ul[ivar] = Uold(i, j-1, k, ivar);
+                Ur[ivar] = Uold(i, j, k, ivar);
             }
             swap_direction(Ul, IV);
             swap_direction(Ur, IV);
             compute_flux(Ul, Ur, 0.0, flux);
             swap_direction(flux, IV);
             for (ivar = 0; ivar < nvar; ++ivar) {
-                Unew(i, j, k, ivar) += dt / dy * flux(ivar);
+                Unew(i, j, k, ivar) += dt / dy * flux[ivar];
             }
             // Right flux in y direction
             for (ivar = 0; ivar < nvar; ++ivar){
-                Ul(ivar) = Uold(i, j, k, ivar);
-                Ur(ivar) = Uold(i, j+1, k, ivar);
+                Ul[ivar] = Uold(i, j, k, ivar);
+                Ur[ivar] = Uold(i, j+1, k, ivar);
             }
             swap_direction(Ul, IV);
             swap_direction(Ur, IV);
             compute_flux(Ul, Ur, 0.0, flux);
             swap_direction(flux, IV);
             for (ivar = 0; ivar < nvar; ++ivar) {
-                Unew(i, j, k, ivar) -= dt / dy * flux(ivar);
+                Unew(i, j, k, ivar) -= dt / dy * flux[ivar];
             }
             // Compute fluxes in the z direction (up and down)
             // Left flux in z direction
             for (ivar = 0; ivar < nvar; ++ivar){
-                Ul(ivar) = Uold(i, j, k-1, ivar);
-                Ur(ivar) = Uold(i, j, k, ivar);
+                Ul[ivar] = Uold(i, j, k-1, ivar);
+                Ur[ivar] = Uold(i, j, k, ivar);
             }
             swap_direction(Ul, IW);
             swap_direction(Ur, IW);
             compute_flux(Ul, Ur, grav * dz, flux);
             swap_direction(flux, IW);
             for (ivar = 0; ivar < nvar; ++ivar) {
-                Unew(i, j, k, ivar) += dt / dz * flux(ivar);
+                Unew(i, j, k, ivar) += dt / dz * flux[ivar];
             }
             // Right flux in z direction
             for (ivar = 0; ivar < nvar; ++ivar){
-                Ul(ivar) = Uold(i, j, k, ivar);
-                Ur(ivar) = Uold(i, j, k+1, ivar);
+                Ul[ivar] = Uold(i, j, k, ivar);
+                Ur[ivar] = Uold(i, j, k+1, ivar);
             }
             swap_direction(Ul, IW);
             swap_direction(Ur, IW);
             compute_flux(Ul, Ur, grav * dz, flux);
             swap_direction(flux, IW);
             for (ivar = 0; ivar < nvar; ++ivar) {
-                Unew(i, j, k, ivar) -= dt / dz * flux(ivar);
+                Unew(i, j, k, ivar) -= dt / dz * flux[ivar];
             }
             // Gravity source term
             Unew(i, j, k, IW) += dt * 0.25 * (Uold(i, j, k-1, ID) + 2 * Uold(i, j, k, ID) + Uold(i, j, k+1, ID)) * grav;
@@ -510,11 +511,7 @@ void compute_kernel(Kokkos::View<double****> Uold, Kokkos::View<double****> Unew
 // The first and last points in the output array are set to the start and stop values respectively,
 // and the intermediate points are calculated using linear interpolation.
 void linspace(double start, double end, int num, Kokkos::View<double*>& out) {
-    // out.resize(num);
     double step = (end - start) / (num - 1);
-    // for (int i = 0; i < num; ++i) {
-    //     out[i] = start + i * step;
-    // }
     Kokkos::parallel_for("linspace", num, KOKKOS_LAMBDA(int i) {
         out(i) = start + i * step;
     });
@@ -559,9 +556,8 @@ int main(int argc, char* argv[]) {
     dz = Lz / nz; // Grid spacing in z-direction
 
     // Instantiate Kokkos view for grid coordinates
-    xc = Kokkos::View<double*>("xc", nx + 2);
-    yc = Kokkos::View<double*>("yc", ny + 2);
-    zc = Kokkos::View<double*>("zc", nz + 2);
+    // Arrays for x, y, and z cell center coordinates with ghosts
+    Kokkos::View<double*> xc("xc", nx + 2), yc("yc", ny + 2), zc("zc", nz + 2);
 
     // Allocate memory for grid coordinates
     linspace(-0.5 * dx, Lx + 0.5 * dx, nx + 2, xc); // Generate x-coordinates
@@ -569,17 +565,21 @@ int main(int argc, char* argv[]) {
     linspace(-0.5 * dz, Lz + 0.5 * dz, nz + 2, zc); // Generate z-coordinates
 
     // Allocate memory for simulation data structures
-    // Array Uold(nx + 2, ny + 2, nz + 2, nvar);
-    // Array Unew(nx + 2, ny + 2, nz + 2, nvar);
     Kokkos::View<double****> Uold("Uold", nx + 2, ny + 2, nz + 2, nvar);
     Kokkos::View<double****> Unew("Unew", nx + 2, ny + 2, nz + 2, nvar);
 
     // Compute initial conditions for the simulation
-    compute_initial_condition(Unew);
+    compute_initial_condition(Unew, xc, yc, zc);
 
     // Copy initial conditions from Unew to Uold and apply boundary conditions
     Kokkos::deep_copy(Uold, Unew);
-    compute_boundary_condition(Uold);
+    compute_boundary_condition(Uold, xc, yc, zc);
+
+    // Creates a host mirror view for output (when using GPUs)
+    auto Uhost = Kokkos::create_mirror_view(Uold);
+    Kokkos::deep_copy(Uhost, Uold);
+    auto xc_host = Kokkos::create_mirror_view(xc), yc_host = Kokkos::create_mirror_view(yc), zc_host = Kokkos::create_mirror_view(zc);
+    Kokkos::deep_copy(xc_host,xc), Kokkos::deep_copy(yc_host,yc), Kokkos::deep_copy(zc_host,zc);
 
     // Get the start time for performance measurement
     auto start = std::chrono::high_resolution_clock::now();
@@ -587,17 +587,18 @@ int main(int argc, char* argv[]) {
     // Time-stepping loop
     for (it = 0; it < nt; ++it) {
         // Write output for the current time step
-        write_output(it, freq_output, Uold);
+        write_output(it, freq_output, Uhost, xc_host, yc_host, zc_host);
 
         // Compute the time step for the next iteration
         dt = cfl * compute_timestep(Uold);
 
         // Solve the hydrodynamic equations using the kernel
-        compute_kernel(Uold, Unew, dt);
+        compute_kernel(Uold, Unew, dt, xc, yc, zc);
 
         // Update Uold with the new values from Unew and apply boundary conditions
         Kokkos::deep_copy(Uold, Unew);
-        compute_boundary_condition(Uold);
+        compute_boundary_condition(Uold, xc, yc, zc);
+        Kokkos::deep_copy(Uhost, Uold);
     }
 
     // Measure elapsed time
@@ -605,10 +606,6 @@ int main(int argc, char* argv[]) {
     elapsed_time = std::chrono::duration<double>(end - start).count();
     std::cout << "Execution time (s): " << elapsed_time << '\n';
     std::cout << "Performance (Mcell-update/s): " << nt * nx * ny * nz/ (1E6 * elapsed_time) << '\n';
-    
-    xc = Kokkos::View<double*>();
-    yc = Kokkos::View<double*>();
-    zc = Kokkos::View<double*>();
     }
     Kokkos::finalize();
     return 0;
