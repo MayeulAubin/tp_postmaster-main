@@ -28,7 +28,7 @@ namespace conv_variables {
 // This function fills an output data array with the state variables of the fluid simulation
 // at each grid cell. It computes the density, velocity components, kinetic energy, gravitational energy,
 // and temperature for each cell in the grid and stores these values in the provided data array.
-void fill_data(Kokkos::View<double**> data, Kokkos::View<double****>::HostView U, const Kokkos::View<double*>::HostView xc, const Kokkos::View<double*>::HostView yc, const Kokkos::View<double*>::HostView zc) {
+void fill_data(Kokkos::View<double**> data, Kokkos::View<double****> U, const Kokkos::View<double*> xc, const Kokkos::View<double*> yc, const Kokkos::View<double*> zc) {
     using namespace conv_variables;
 
     
@@ -72,7 +72,7 @@ void fill_data(Kokkos::View<double**> data, Kokkos::View<double****>::HostView U
 // This function writes the output of the fluid simulation to a CSV file at specified time steps.
 // It calculates the maximum kinetic energy across the grid, prints the current time step and kinetic energy,
 // and saves the simulation state to a file if the output frequency condition is met.
-void write_output(int it, int freq_output, Kokkos::View<double****>::HostView  U, const Kokkos::View<double*>::HostView xc, const Kokkos::View<double*>::HostView yc, const Kokkos::View<double*>::HostView zc) {
+void write_output(int it, int freq_output, Kokkos::View<double****>  U, const Kokkos::View<double*> xc, const Kokkos::View<double*> yc, const Kokkos::View<double*> zc) {
     using namespace conv_variables;
 
     double ekin_max;
@@ -96,7 +96,7 @@ void write_output(int it, int freq_output, Kokkos::View<double****>::HostView  U
         iout = it / freq_output; // Calculate output index
         std::cout << "write csv output: " << iout << '\n'; // Inform about the output being generated
 
-        Kokkos::View<double**>::HostView data("data_output", nx * ny * nz, nvar + 3);
+        Kokkos::View<double**> data("data_output", nx * ny * nz, nvar + 3);
 
         // Fill the data array with the current simulation state
         fill_data(data, U, xc, yc, zc);
@@ -390,7 +390,7 @@ void compute_flux(const Kokkos::Array<double, nvar> &Ucl, const Kokkos::Array<do
 // It takes a one-dimensional array 'arr' as input/output and exchanges and the y/z direction
 // the values at indices IU and IV/IW, which represent the x and y/z velocities respectively.
 template<std::size_t nvar>
-void swap_direction(const Kokkos::Array<double, nvar> arr, int IVW) {
+void swap_direction(Kokkos::Array<double, nvar> &arr, int IVW) {
     double temp;  // Temporary variable for swapping
     // Swap the x and y velocity components
     temp = arr[conv_variables::IU];         // Store the x-velocity in a temporary variable
