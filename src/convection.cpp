@@ -96,7 +96,7 @@ void write_output(int it, int freq_output, Kokkos::View<double****>  U, const Ko
         iout = it / freq_output; // Calculate output index
         std::cout << "write csv output: " << iout << '\n'; // Inform about the output being generated
 
-        Kokkos::View<double**> data("data_output", nx * ny * nz, nvar + 3);
+        Kokkos::View<double**, Kokkos::HostSpace> data("data_output", nx * ny * nz, nvar + 3);
 
         // Fill the data array with the current simulation state
         fill_data(data, U, xc, yc, zc);
