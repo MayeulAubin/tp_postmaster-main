@@ -28,7 +28,7 @@ namespace conv_variables {
 // This function fills an output data array with the state variables of the fluid simulation
 // at each grid cell. It computes the density, velocity components, kinetic energy, gravitational energy,
 // and temperature for each cell in the grid and stores these values in the provided data array.
-void fill_data(Kokkos::View<double**> data, Kokkos::View<double****> U, const Kokkos::View<double*> xc, const Kokkos::View<double*> yc, const Kokkos::View<double*> zc) {
+void fill_data(Kokkos::View<double**, Kokkos::HostSpace> data, Kokkos::View<double****, Kokkos::HostSpace> U, const Kokkos::View<double*, Kokkos::HostSpace> xc, const Kokkos::View<double*, Kokkos::HostSpace> yc, const Kokkos::View<double*, Kokkos::HostSpace> zc) {
     using namespace conv_variables;
 
     
@@ -72,7 +72,7 @@ void fill_data(Kokkos::View<double**> data, Kokkos::View<double****> U, const Ko
 // This function writes the output of the fluid simulation to a CSV file at specified time steps.
 // It calculates the maximum kinetic energy across the grid, prints the current time step and kinetic energy,
 // and saves the simulation state to a file if the output frequency condition is met.
-void write_output(int it, int freq_output, Kokkos::View<double****>  U, const Kokkos::View<double*> xc, const Kokkos::View<double*> yc, const Kokkos::View<double*> zc) {
+void write_output(int it, int freq_output, Kokkos::View<double****, Kokkos::HostSpace>  U, const Kokkos::View<double*, Kokkos::HostSpace> xc, const Kokkos::View<double*, Kokkos::HostSpace> yc, const Kokkos::View<double*, Kokkos::HostSpace> zc) {
     using namespace conv_variables;
 
     double ekin_max;
