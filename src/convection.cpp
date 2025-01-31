@@ -72,7 +72,7 @@ void fill_data(Kokkos::View<double**, Kokkos::HostSpace> data, Kokkos::View<doub
 // This function writes the output of the fluid simulation to a CSV file at specified time steps.
 // It calculates the maximum kinetic energy across the grid, prints the current time step and kinetic energy,
 // and saves the simulation state to a file if the output frequency condition is met.
-void write_output(int it, int freq_output, Kokkos::View<double****, Kokkos::HostSpace>  U, const Kokkos::View<double*, Kokkos::HostSpace> xc, const Kokkos::View<double*, Kokkos::HostSpace> yc, const Kokkos::View<double*, Kokkos::HostSpace> zc) {
+void write_output(int it, int freq_output, Kokkos::View<double****, Kokkos::LayoutLeft, Kokkos::HostSpace>  U, const Kokkos::View<double*, Kokkos::LayoutLeft, Kokkos::HostSpace> xc, const Kokkos::View<double*, Kokkos::LayoutLeft, Kokkos::HostSpace> yc, const Kokkos::View<double*, Kokkos::LayoutLeft, Kokkos::HostSpace> zc) {
     using namespace conv_variables;
 
     double ekin_max;
