@@ -28,7 +28,7 @@ namespace conv_variables {
 // This function fills an output data array with the state variables of the fluid simulation
 // at each grid cell. It computes the density, velocity components, kinetic energy, gravitational energy,
 // and temperature for each cell in the grid and stores these values in the provided data array.
-void fill_data(Kokkos::View<double**, Kokkos::HostSpace> data, Kokkos::View<double****, Kokkos::HostSpace> U, const Kokkos::View<double*, Kokkos::HostSpace> xc, const Kokkos::View<double*, Kokkos::HostSpace> yc, const Kokkos::View<double*, Kokkos::HostSpace> zc) {
+void fill_data(Kokkos::View<double**, Kokkos::HostSpace> data, Kokkos::View<double****, Kokkos::LayoutLeft, Kokkos::HostSpace> U, const Kokkos::View<double*, Kokkos::LayoutLeft, Kokkos::HostSpace> xc, const Kokkos::View<double*, Kokkos::LayoutLeft, Kokkos::HostSpace> yc, const Kokkos::View<double*, Kokkos::LayoutLeft, Kokkos::HostSpace> zc) {
     using namespace conv_variables;
 
     
