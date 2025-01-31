@@ -320,10 +320,10 @@ double compute_timestep(Kokkos::View<double****> U) {
 
             // Calculate pressure and sound speed
             pc = (U(i, j, k, IE) - ekinc - egc) * (gam - 1.0);
-            ac = std::sqrt(gam * pc / rhoc);  // Speed of sound
+            ac = Kokkos::sqrt(gam * pc / rhoc);  // Speed of sound
 
             // Calculate the local time step based on CFL condition
-            dt_loc = std::min(dt_loc,std::min(std::min(dx, dy), dz) / (ac + std::sqrt(uc * uc + vc * vc + wc * wc)));
+            dt_loc = Kokkos::min(dt_loc,Kokkos::min(Kokkos::min(dx, dy), dz) / (ac + Kokkos::sqrt(uc * uc + vc * vc + wc * wc)));
         },
         Kokkos::Min<double>(dt));
         return dt;
@@ -352,7 +352,7 @@ void compute_flux(const Kokkos::Array<double, nvar> &Ucl, const Kokkos::Array<do
     ekinl = 0.5 * (ul * ul + vl * vl + wl * wl) * rhol;
     egl = rhol * Ucl[IG];
     pl = (Ucl[IE] - ekinl - egl) * (gam - 1.0);
-    al = rhol * std::sqrt(gam * pl / rhol);
+    al = rhol * Kokkos::sqrt(gam * pl / rhol);
 
     // Calculate right state properties
     rhor = Ucr[ID];
@@ -362,12 +362,12 @@ void compute_flux(const Kokkos::Array<double, nvar> &Ucl, const Kokkos::Array<do
     ekinr = 0.5 * (ur * ur + vr * vr + wr * wr) * rhor;
     egr = rhor * Ucr[IG];
     pr = (Ucr[IE] - ekinr - egr) * (gam - 1.0);
-    ar = rhor * std::sqrt(gam * pr / rhor);
+    ar = rhor * Kokkos::sqrt(gam * pr / rhor);
 
     // Calculate face-centered properties
-    aface = 1.1 * std::max(al, ar);  // Face speed
+    aface = 1.1 * Kokkos::max(al, ar);  // Face speed
     ustar = 0.5 * (ul + ur) - 0.5 * (pr - pl - 0.5 * (rhol + rhor) * gravdx) / aface;
-    theta = std::min(std::fabs(ustar) / std::max(al / rhol, ar / rhor), 1.0);  // Non-dimensional speed
+    theta = Kokkos::min(Kokkos::fabs(ustar) / Kokkos::max(al / rhol, ar / rhor), 1.0);  // Non-dimensional speed
     pstar = 0.5 * (pl + pr) - 0.5 * (ur - ul) * aface * theta;  // Star pressure
 
     // Calculate fluxes based on the wave speed (ustar]
