@@ -1,5 +1,7 @@
 # Convection simulation
 
+This repo is taken from a lecture from CExA on High Performance Computing. 
+
 ## Fortran version
 
 ### How to compile
